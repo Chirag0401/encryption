@@ -85,9 +85,9 @@ def delete_volume(session, volume_id):
 
 def main():
     region = "eu-west-1"
-    access_key = "ASIAS4L6ROQMQUWODIFC"
-    secret_access_key = "Iz+11e5lArxUpgamPi81RNQtbF4s8frb4WFBXS/g"
-    session_token = "IQoJb3JpZ2luX2VjEBcaCXVzLWVhc3QtMSJGMEQCIEeplD0/1/SJNbWVYb6l7PW4BMwi8ym6qBLpoDDO06zyAiAYembhfqN0WRbf6utUStxQS+At+BKrX6bKizANPJkzViqgAwj///////////8BEAEaDDE5ODM3MDc1MTUxMyIMgnxGyyuMqWijk4k4KvQCRJ8h0hsdauKiq7+1Mubh0J08jU+5B9jtZyUF+m9f7CalnWZsSzo4JChT+w0pMiS6LhrVRdyav8bOJ8HY2+2aMGQSfLmg3Sj8uhKnAMMgod7/ewDMtckMTqd1WJmYLh5G3qSubUUkHQzLkEqKgWtAnPwxYdzw5Pd5jYGFWoe1LCoFk5r9jNxj6n1Gu62p/mVtzdMpa43BuYgJ4Rbbv3tnu+fDEGD16CHuWf9e4tm3U+jUFDHkOaCvIJ5NIgRQiAVZk962b1e8XjGMK7cFirq9eVorFUcd3RQ+qncZOQezovkSYlHOIhwzWOrir/gBRI54U2Oekfv2LZ1qxg4D78Gj4k+a/fPYjhMD0SaLn9rzqQyoeHRH3Kfbgx8b5UJJPGv6cRRy5PD63RjPKcCkCL45IA25l1shsG8QLv3NSo1gy6AdnZyuoMOkCHlSWsWvjrA+oeW0UKj1Pxy8xfTqPnp6LNA3WwdU51Ary3Tuhc7YEAjq6j3+MKDetKgGOqcBdJazUT+yw5W1nGZ1ViIBpbhDzI+svcJBtIEYIsWdP9AKq0WfhuvhMgE9xxhyzPrXk7m5wELTFNcjjhqNV3IPpfupbcwnoTM76+mI16sY0yGLvrCqJTwMcEzEMcJErnyKvUHhZ1EY1FWjG9+SktD0o4M2pq1pQidnfv0w2U4aHKDw+FuxVh2wGhPHU/CVu26bdZ3jlOAt1u/rXXygLdMnQqgWKCAeFjA="
+    access_key = ""
+    secret_access_key = ""
+    session_token = ""
     kms_key = "arn:aws:kms:eu-west-1:198370751513:key/d1d3158d-940a-4e76-b21b-ec5d595723e9"  # Replace with your KMS key ID
     
     session = create_session(region, access_key, secret_access_key, session_token)
