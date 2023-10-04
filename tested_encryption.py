@@ -3,6 +3,7 @@ import os
 import time
 import json
 from datetime import datetime
+from collections import defaultdict
 
 def create_session():
     return boto3.Session(
@@ -77,41 +78,25 @@ def start_instance(session, instance_id):
     ec2_client.start_instances(InstanceIds=[instance_id])
     waiter = ec2_client.get_waiter('instance_running')
     waiter.wait(InstanceIds=[instance_id])
-    print(f"Instance {instance_id} running.")
+    print(f"Instance {instance_id} started.")
 
 def log_volume_details(details):
-    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    with open(f'volume_changes_{timestamp}.log', 'a') as file:
+    current_time = datetime.now().strftime("%Y%m%d%H%M%S")
+    with open(f'volume_changes_{current_time}.log', 'a') as file:
         file.write(json.dumps(details) + '\n')
 
-def main():
-    session = create_session()
-    kms_key = get_kms_key_arn(session)
-    if not kms_key:
-        print("Error: Could not retrieve the KMS key ARN. Exiting.")
-        return
+def process_volumes_for_instance(session, volumes, kms_key):
+    instance_id = volumes[0]['Attachments'][0]['InstanceId']
+    print(f"Processing volumes for instance {instance_id}")
+    stop_instance(session, instance_id)
 
-    volume_info = get_volume_info(session)
-    for volume in volume_info:
+    for volume in volumes:
         volume_id = volume['VolumeId']
-
-        if volume['State'] != 'in-use':
-            print(f"Volume {volume_id} is not in use. Skipping...")
-            continue
-
-        if volume['Encrypted']:
-            print(f"Volume {volume_id} is already encrypted. Skipping...")
-            continue
-
-        instance_id = volume['Attachments'][0]['InstanceId']
-        stop_instance(session, instance_id)
-
         print(f"Processing volume {volume_id}")
         snapshot_id = create_snapshot(session, volume_id)
         time.sleep(10)
-
+        
         encrypted_volume_id = create_encrypted_volume(session, snapshot_id, volume['AvailabilityZone'], volume['Size'], volume['VolumeType'], kms_key)
-
         detach_volume(session, volume_id)
         time.sleep(10)
 
@@ -129,9 +114,26 @@ def main():
             'availability_zone': volume['AvailabilityZone']
         }
         log_volume_details(details)
-
-        start_instance(session, instance_id)
         print(f"Volume {volume_id} processed and replaced with encrypted volume {encrypted_volume_id}")
+
+    start_instance(session, instance_id)
+
+def main():
+    session = create_session()
+    kms_key = get_kms_key_arn(session)
+    if not kms_key:
+        print("Error: Could not retrieve the KMS key ARN. Exiting.")
+        return
+
+    volume_info = get_volume_info(session)
+    instance_to_volumes_map = defaultdict(list)
+    for volume in volume_info:
+        if volume['State'] == 'in-use' and not volume['Encrypted']:
+            instance_id = volume['Attachments'][0]['InstanceId']
+            instance_to_volumes_map[instance_id].append(volume)
+
+    for instance_id, volumes in instance_to_volumes_map.items():
+        process_volumes_for_instance(session, volumes, kms_key)
 
 if __name__ == '__main__':
     main()
