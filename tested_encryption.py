@@ -14,97 +14,72 @@ def create_session():
 
 def get_instance_name(session, instance_id):
     ec2_client = session.client("ec2")
-    try:
-        response = ec2_client.describe_instances(InstanceIds=[instance_id])
-        for tag in response['Reservations'][0]['Instances'][0].get('Tags', []):
-            if tag['Key'] == 'Name':
-                return tag['Value']
-        return None
-    except Exception as e:
-        print(f"Error retrieving instance name: {e}")
-        return None
+    response = ec2_client.describe_instances(InstanceIds=[instance_id])
+    for tag in response['Reservations'][0]['Instances'][0].get('Tags', []):
+        if tag['Key'] == 'Name':
+            return tag['Value']
+    return None
 
 def get_kms_key_arn(session, alias_name='alias/aws/ebs'):
     kms_client = session.client('kms')
     try:
         response = kms_client.describe_key(KeyId=alias_name)
         return response['KeyMetadata']['Arn']
-    except Exception as e:
-        print(f"Error retrieving KMS key with alias {alias_name}: {e}")
+    except kms_client.exceptions.NotFoundException:
+        print(f"KMS key with alias {alias_name} not found.")
         return None
 
 def get_volume_info(session):
     ec2_client = session.client("ec2")
-    try:
-        response = ec2_client.describe_volumes()
-        return response['Volumes']
-    except Exception as e:
-        print(f"Error retrieving volume information: {e}")
-        return []
+    response = ec2_client.describe_volumes()
+    return response['Volumes']
 
 def create_snapshot(session, volume_id):
     ec2_client = session.client("ec2")
-    try:
-        response = ec2_client.create_snapshot(VolumeId=volume_id)
-        return response['SnapshotId']
-    except Exception as e:
-        print(f"Error creating snapshot for volume {volume_id}: {e}")
-        return None
+    response = ec2_client.create_snapshot(VolumeId=volume_id)
+    return response['SnapshotId']
 
 def create_encrypted_volume(session, snapshot_id, availability_zone, size, volume_type, kms_key):
     ec2_client = session.client("ec2")
-    try:
-        response = ec2_client.create_volume(
-            SnapshotId=snapshot_id,
-            AvailabilityZone=availability_zone,
-            Size=size,
-            VolumeType=volume_type,
-            Encrypted=True,
-            KmsKeyId=kms_key,
-        )
-        return response['VolumeId']
-    except Exception as e:
-        print(f"Error creating encrypted volume from snapshot {snapshot_id}: {e}")
-        return None
+    response = ec2_client.create_volume(
+        SnapshotId=snapshot_id,
+        AvailabilityZone=availability_zone,
+        Size=size,
+        VolumeType=volume_type,
+        Encrypted=True,
+        KmsKeyId=kms_key,
+    )
+    return response['VolumeId']
 
 def attach_encrypted_volume(session, encrypted_volume_id, instance_id, device_name):
     ec2_client = session.client("ec2")
-    try:
-        ec2_client.attach_volume(
-            VolumeId=encrypted_volume_id,
-            InstanceId=instance_id,
-            Device=device_name
-        )
-    except Exception as e:
-        print(f"Error attaching encrypted volume {encrypted_volume_id} to instance {instance_id}: {e}")
+    ec2_client.attach_volume(
+        VolumeId=encrypted_volume_id,
+        InstanceId=instance_id,
+        Device=device_name
+    )
 
 def detach_volume(session, volume_id):
     ec2_client = session.client("ec2")
-    try:
-        ec2_client.detach_volume(VolumeId=volume_id)
-    except Exception as e:
-        print(f"Error detaching volume {volume_id}: {e}")
+    ec2_client.detach_volume(VolumeId=volume_id)
 
 def stop_instance(session, instance_id):
     ec2_client = session.client("ec2")
-    try:
-        ec2_client.stop_instances(InstanceIds=[instance_id])
-        waiter = ec2_client.get_waiter('instance_stopped')
-        waiter.wait(InstanceIds=[instance_id])
-    except Exception as e:
-        print(f"Error stopping instance {instance_id}: {e}")
+    print(f"Stopping instance {instance_id}...")
+    ec2_client.stop_instances(InstanceIds=[instance_id])
+    waiter = ec2_client.get_waiter('instance_stopped')
+    waiter.wait(InstanceIds=[instance_id])
+    print(f"Instance {instance_id} stopped.")
 
 def start_instance(session, instance_id):
     ec2_client = session.client("ec2")
-    try:
-        ec2_client.start_instances(InstanceIds=[instance_id])
-        waiter = ec2_client.get_waiter('instance_running')
-        waiter.wait(InstanceIds=[instance_id])
-    except Exception as e:
-        print(f"Error starting instance {instance_id}: {e}")
+    print(f"Starting instance {instance_id}...")
+    ec2_client.start_instances(InstanceIds=[instance_id])
+    waiter = ec2_client.get_waiter('instance_running')
+    waiter.wait(InstanceIds=[instance_id])
+    print(f"Instance {instance_id} running.")
 
 def log_volume_details(details):
-    # Using a timestamp to make a unique log filename for each run
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
     with open(f'volume_changes_{timestamp}.log', 'a') as file:
         file.write(json.dumps(details) + '\n')
