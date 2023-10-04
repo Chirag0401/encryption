@@ -1,14 +1,13 @@
 import boto3
 import json
 
-def create_session(region, access_key, secret_access_key, session_token):
-    session = boto3.Session(
-        region_name=region,
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_access_key,
-        aws_session_token=session_token,
+def create_session():
+    return boto3.Session(
+        region_name="eu-west-1",
+        aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+        aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
+        aws_session_token=os.environ.get('AWS_SESSION_TOKEN'),
     )
-    return session
 
 def get_volume_info(session):
     ec2_client = session.client("ec2")
@@ -88,47 +87,43 @@ def start_instance(session, instance_id):
     waiter.wait(InstanceIds=[instance_id])
 
 def main():
-    region = "eu-west-1"
-    access_key = "YourAccessKey"
-    secret_access_key = "YourSecretAccessKey"
-    session_token = "YourSessionToken"
-    kms_key = "YourKMSKeyARN"
-    
+    kms_key = "arn:aws:kms:eu-west-1:198370751513:key/d1d3158d-940a-4e76-b21b-ec5d595723e9"
+
     session = create_session(region, access_key, secret_access_key, session_token)
     volume_info = get_volume_info(session)
-    
+
     for volume in volume_info:
         volume_id = volume['VolumeId']
-        
+
         if volume['State'] != 'in-use':
             print(f"Volume {volume_id} is not in use. Skipping...")
             continue
-        
+
         if volume['Encrypted']:
             print(f"Volume {volume_id} is already encrypted. Skipping...")
             continue
-        
+
         print(f"Processing volume {volume_id}")
         snapshot_id = create_snapshot(session, volume_id)
         if not snapshot_id:
             continue
-        
+
         encrypted_volume_id = create_encrypted_volume(session, snapshot_id, volume['AvailabilityZone'], volume['Size'], volume['VolumeType'], kms_key)
         if not encrypted_volume_id:
             continue
-        
+
         instance_id = volume['Attachments'][0]['InstanceId']
         device_name = volume['Attachments'][0]['Device']
-        
-        if device_name == '/dev/sda1':  # Check if the volume is the root volume
+
+        if device_name == '/dev/xvda':  # Check if the volume is the root volume
             stop_instance(session, instance_id)
-        
+
         detach_volume(session, volume_id)
         attach_encrypted_volume(session, encrypted_volume_id, instance_id, device_name)
-        
-        if device_name == '/dev/sda1':  # Check if the volume was the root volume
+
+        if device_name == '/dev/xvda':  # Check if the volume was the root volume
             start_instance(session, instance_id)
-        
+
         confirm_delete = input(f"Do you really want to delete the original volume {volume_id}? (yes/no): ")
         if confirm_delete.lower() == 'yes':
             delete_volume(session, volume_id)
