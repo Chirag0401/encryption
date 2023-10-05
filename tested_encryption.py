@@ -5,6 +5,9 @@ import json
 from datetime import datetime
 from collections import defaultdict
 
+# Global list to store volume details for the current script run
+VOLUME_DETAILS_LIST = []
+
 def create_session():
     return boto3.Session(
         region_name=os.environ.get('AWS_DEFAULT_REGION'),
@@ -81,9 +84,13 @@ def start_instance(session, instance_id):
     print(f"Instance {instance_id} started.")
 
 def log_volume_details(details):
+    VOLUME_DETAILS_LIST.append(details)
+
+def write_volume_details_to_file():
     current_time = datetime.now().strftime("%Y%m%d%H%M%S")
-    with open(f'volume_changes_{current_time}.log', 'a') as file:
-        file.write(json.dumps(details) + '\n')
+    with open(f'volume_changes_{current_time}.log', 'w') as file:
+        for detail in VOLUME_DETAILS_LIST:
+            file.write(json.dumps(detail) + '\n')
 
 def process_volumes_for_instance(session, volumes, kms_key):
     instance_id = volumes[0]['Attachments'][0]['InstanceId']
@@ -134,6 +141,8 @@ def main():
 
     for instance_id, volumes in instance_to_volumes_map.items():
         process_volumes_for_instance(session, volumes, kms_key)
+
+    write_volume_details_to_file()
 
 if __name__ == '__main__':
     main()
