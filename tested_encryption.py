@@ -1,6 +1,5 @@
 import boto3
 import os
-import time
 import json
 from datetime import datetime
 from collections import defaultdict
@@ -41,7 +40,13 @@ def get_volume_info(session):
 def create_snapshot(session, volume_id):
     ec2_client = session.client("ec2")
     response = ec2_client.create_snapshot(VolumeId=volume_id)
-    return response['SnapshotId']
+    snapshot_id = response['SnapshotId']
+
+    # Wait for the snapshot to complete
+    waiter = ec2_client.get_waiter('snapshot_completed')
+    waiter.wait(SnapshotIds=[snapshot_id])
+
+    return snapshot_id
 
 def create_encrypted_volume(session, snapshot_id, availability_zone, size, volume_type, kms_key):
     ec2_client = session.client("ec2")
@@ -53,7 +58,13 @@ def create_encrypted_volume(session, snapshot_id, availability_zone, size, volum
         Encrypted=True,
         KmsKeyId=kms_key,
     )
-    return response['VolumeId']
+    new_volume_id = response['VolumeId']
+
+    # Wait for the volume to become available
+    waiter = ec2_client.get_waiter('volume_available')
+    waiter.wait(VolumeIds=[new_volume_id])
+
+    return new_volume_id
 
 def attach_encrypted_volume(session, encrypted_volume_id, instance_id, device_name):
     ec2_client = session.client("ec2")
@@ -66,6 +77,10 @@ def attach_encrypted_volume(session, encrypted_volume_id, instance_id, device_na
 def detach_volume(session, volume_id):
     ec2_client = session.client("ec2")
     ec2_client.detach_volume(VolumeId=volume_id)
+    
+    # Wait for the volume to be fully detached
+    waiter = ec2_client.get_waiter('volume_available')
+    waiter.wait(VolumeIds=[volume_id])
 
 def stop_instance(session, instance_id):
     ec2_client = session.client("ec2")
@@ -101,11 +116,9 @@ def process_volumes_for_instance(session, volumes, kms_key):
         volume_id = volume['VolumeId']
         print(f"Processing volume {volume_id}")
         snapshot_id = create_snapshot(session, volume_id)
-        time.sleep(10)
         
         encrypted_volume_id = create_encrypted_volume(session, snapshot_id, volume['AvailabilityZone'], volume['Size'], volume['VolumeType'], kms_key)
         detach_volume(session, volume_id)
-        time.sleep(10)
 
         attach_encrypted_volume(session, encrypted_volume_id, instance_id, volume['Attachments'][0]['Device'])
 
