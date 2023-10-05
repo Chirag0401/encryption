@@ -3,6 +3,7 @@ import os
 import json
 from datetime import datetime
 from collections import defaultdict
+import time
 
 # Global list to store volume details for the current script run
 VOLUME_DETAILS_LIST = []
@@ -42,9 +43,11 @@ def create_snapshot(session, volume_id):
     response = ec2_client.create_snapshot(VolumeId=volume_id)
     snapshot_id = response['SnapshotId']
 
-    # Wait for the snapshot to complete
+    start_time = time.time()
     waiter = ec2_client.get_waiter('snapshot_completed')
     waiter.wait(SnapshotIds=[snapshot_id])
+    elapsed_time = time.time() - start_time
+    print(f"Waited {elapsed_time:.2f} seconds for snapshot {snapshot_id} to complete.")
 
     return snapshot_id
 
@@ -58,13 +61,15 @@ def create_encrypted_volume(session, snapshot_id, availability_zone, size, volum
         Encrypted=True,
         KmsKeyId=kms_key,
     )
-    new_volume_id = response['VolumeId']
+    volume_id = response['VolumeId']
 
-    # Wait for the volume to become available
+    start_time = time.time()
     waiter = ec2_client.get_waiter('volume_available')
-    waiter.wait(VolumeIds=[new_volume_id])
-
-    return new_volume_id
+    waiter.wait(VolumeIds=[volume_id])
+    elapsed_time = time.time() - start_time
+    print(f"Waited {elapsed_time:.2f} seconds for encrypted volume {volume_id} to become available.")
+    
+    return volume_id
 
 def attach_encrypted_volume(session, encrypted_volume_id, instance_id, device_name):
     ec2_client = session.client("ec2")
@@ -77,25 +82,37 @@ def attach_encrypted_volume(session, encrypted_volume_id, instance_id, device_na
 def detach_volume(session, volume_id):
     ec2_client = session.client("ec2")
     ec2_client.detach_volume(VolumeId=volume_id)
-    
-    # Wait for the volume to be fully detached
+
+    start_time = time.time()
     waiter = ec2_client.get_waiter('volume_available')
     waiter.wait(VolumeIds=[volume_id])
+    elapsed_time = time.time() - start_time
+    print(f"Waited {elapsed_time:.2f} seconds for volume {volume_id} to detach.")
 
 def stop_instance(session, instance_id):
     ec2_client = session.client("ec2")
     print(f"Stopping instance {instance_id}...")
     ec2_client.stop_instances(InstanceIds=[instance_id])
+
+    start_time = time.time()
     waiter = ec2_client.get_waiter('instance_stopped')
     waiter.wait(InstanceIds=[instance_id])
+    elapsed_time = time.time() - start_time
+    print(f"Waited {elapsed_time:.2f} seconds for instance {instance_id} to stop.")
+    
     print(f"Instance {instance_id} stopped.")
 
 def start_instance(session, instance_id):
     ec2_client = session.client("ec2")
     print(f"Starting instance {instance_id}...")
     ec2_client.start_instances(InstanceIds=[instance_id])
+
+    start_time = time.time()
     waiter = ec2_client.get_waiter('instance_running')
     waiter.wait(InstanceIds=[instance_id])
+    elapsed_time = time.time() - start_time
+    print(f"Waited {elapsed_time:.2f} seconds for instance {instance_id} to start.")
+    
     print(f"Instance {instance_id} started.")
 
 def log_volume_details(details):
