@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 from collections import defaultdict
 import time
+import botocore
 
 # Global list to store volume details for the current script run
 VOLUME_DETAILS_LIST = []
@@ -15,6 +16,18 @@ def create_session():
         aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
         aws_session_token=os.environ.get('AWS_SESSION_TOKEN'),
     )
+
+def robust_waiter(waiter, **kwargs):
+    try:
+        waiter.wait(
+            **kwargs,
+            WaiterConfig={
+                'Delay': 60,  # time in seconds between each check
+                'MaxAttempts': 60  # maximum number of checks
+            }
+        )
+    except botocore.exceptions.WaiterError:
+        print(f"Waiter {waiter.name} failed for parameters: {kwargs}.")
 
 def get_instance_name(session, instance_id):
     ec2_client = session.client("ec2")
@@ -43,11 +56,8 @@ def create_snapshot(session, volume_id):
     response = ec2_client.create_snapshot(VolumeId=volume_id)
     snapshot_id = response['SnapshotId']
 
-    start_time = time.time()
     waiter = ec2_client.get_waiter('snapshot_completed')
-    waiter.wait(SnapshotIds=[snapshot_id])
-    elapsed_time = time.time() - start_time
-    print(f"Waited {elapsed_time:.2f} seconds for snapshot {snapshot_id} to complete.")
+    robust_waiter(waiter, SnapshotIds=[snapshot_id])
 
     return snapshot_id
 
@@ -63,12 +73,9 @@ def create_encrypted_volume(session, snapshot_id, availability_zone, size, volum
     )
     volume_id = response['VolumeId']
 
-    start_time = time.time()
     waiter = ec2_client.get_waiter('volume_available')
-    waiter.wait(VolumeIds=[volume_id])
-    elapsed_time = time.time() - start_time
-    print(f"Waited {elapsed_time:.2f} seconds for encrypted volume {volume_id} to become available.")
-    
+    robust_waiter(waiter, VolumeIds=[volume_id])
+
     return volume_id
 
 def attach_encrypted_volume(session, encrypted_volume_id, instance_id, device_name):
@@ -83,37 +90,22 @@ def detach_volume(session, volume_id):
     ec2_client = session.client("ec2")
     ec2_client.detach_volume(VolumeId=volume_id)
 
-    start_time = time.time()
     waiter = ec2_client.get_waiter('volume_available')
-    waiter.wait(VolumeIds=[volume_id])
-    elapsed_time = time.time() - start_time
-    print(f"Waited {elapsed_time:.2f} seconds for volume {volume_id} to detach.")
+    robust_waiter(waiter, VolumeIds=[volume_id])
 
 def stop_instance(session, instance_id):
     ec2_client = session.client("ec2")
-    print(f"Stopping instance {instance_id}...")
     ec2_client.stop_instances(InstanceIds=[instance_id])
 
-    start_time = time.time()
     waiter = ec2_client.get_waiter('instance_stopped')
-    waiter.wait(InstanceIds=[instance_id])
-    elapsed_time = time.time() - start_time
-    print(f"Waited {elapsed_time:.2f} seconds for instance {instance_id} to stop.")
-    
-    print(f"Instance {instance_id} stopped.")
+    robust_waiter(waiter, InstanceIds=[instance_id])
 
 def start_instance(session, instance_id):
     ec2_client = session.client("ec2")
-    print(f"Starting instance {instance_id}...")
     ec2_client.start_instances(InstanceIds=[instance_id])
 
-    start_time = time.time()
     waiter = ec2_client.get_waiter('instance_running')
-    waiter.wait(InstanceIds=[instance_id])
-    elapsed_time = time.time() - start_time
-    print(f"Waited {elapsed_time:.2f} seconds for instance {instance_id} to start.")
-    
-    print(f"Instance {instance_id} started.")
+    robust_waiter(waiter, InstanceIds=[instance_id])
 
 def log_volume_details(details):
     VOLUME_DETAILS_LIST.append(details)
@@ -126,12 +118,10 @@ def write_volume_details_to_file():
 
 def process_volumes_for_instance(session, volumes, kms_key):
     instance_id = volumes[0]['Attachments'][0]['InstanceId']
-    print(f"Processing volumes for instance {instance_id}")
     stop_instance(session, instance_id)
 
     for volume in volumes:
         volume_id = volume['VolumeId']
-        print(f"Processing volume {volume_id}")
         snapshot_id = create_snapshot(session, volume_id)
         
         encrypted_volume_id = create_encrypted_volume(session, snapshot_id, volume['AvailabilityZone'], volume['Size'], volume['VolumeType'], kms_key)
@@ -151,7 +141,6 @@ def process_volumes_for_instance(session, volumes, kms_key):
             'availability_zone': volume['AvailabilityZone']
         }
         log_volume_details(details)
-        print(f"Volume {volume_id} processed and replaced with encrypted volume {encrypted_volume_id}")
 
     start_instance(session, instance_id)
 
