@@ -1,6 +1,5 @@
 import boto3
 import os
-import json
 from datetime import datetime
 from collections import defaultdict
 import botocore
@@ -27,8 +26,8 @@ def robust_waiter(waiter, **kwargs):
         waiter.wait(
             **kwargs,
             WaiterConfig={
-                'Delay': 120,  # time in seconds between each check
-                'MaxAttempts': 60  # maximum number of checks
+                'Delay': 120,
+                'MaxAttempts': 60
             }
         )
     except botocore.exceptions.WaiterError:
@@ -165,14 +164,25 @@ def main():
         return
 
     volume_info = get_volume_info(session)
-    instance_to_volumes_map = defaultdict(list)
+    
+    zone_to_instance_to_volumes_map = defaultdict(lambda: defaultdict(list))
+    encountered_zones = set()
+    
     for volume in volume_info:
         if volume['State'] == 'in-use' and not volume['Encrypted']:
             instance_id = volume['Attachments'][0]['InstanceId']
-            instance_to_volumes_map[instance_id].append(volume)
+            availability_zone = volume['AvailabilityZone']
+            encountered_zones.add(availability_zone)
+            zone_to_instance_to_volumes_map[availability_zone][instance_id].append(volume)
 
-    for instance_id, volumes in instance_to_volumes_map.items():
-        process_volumes_for_instance(session, volumes, kms_key)
+    zones_order = list(encountered_zones)
+
+    for zone in zones_order:
+        logger.info(f"Processing volumes in availability zone: {zone}")
+        instance_to_volumes_map = zone_to_instance_to_volumes_map[zone]
+
+        for instance_id, volumes in instance_to_volumes_map.items():
+            process_volumes_for_instance(session, volumes, kms_key)
 
     write_volume_details_to_file()
 
