@@ -3,11 +3,16 @@ import os
 import json
 from datetime import datetime
 from collections import defaultdict
-import time
 import botocore
+import logging
+from prettytable import PrettyTable
 
 # Global list to store volume details for the current script run
 VOLUME_DETAILS_LIST = []
+
+# Setup logging
+logging.basicConfig(filename='script_logs.log', level=logging.INFO)
+logger = logging.getLogger()
 
 def create_session():
     return boto3.Session(
@@ -27,7 +32,7 @@ def robust_waiter(waiter, **kwargs):
             }
         )
     except botocore.exceptions.WaiterError:
-        print(f"Waiter {waiter.name} failed for parameters: {kwargs}.")
+        logger.error(f"Waiter {waiter.name} failed for parameters: {kwargs}.")
 
 def get_instance_name(session, instance_id):
     ec2_client = session.client("ec2")
@@ -43,7 +48,7 @@ def get_kms_key_arn(session, alias_name='alias/aws/ebs'):
         response = kms_client.describe_key(KeyId=alias_name)
         return response['KeyMetadata']['Arn']
     except kms_client.exceptions.NotFoundException:
-        print(f"KMS key with alias {alias_name} not found.")
+        logger.error(f"KMS key with alias {alias_name} not found.")
         return None
 
 def get_volume_info(session):
@@ -112,9 +117,15 @@ def log_volume_details(details):
 
 def write_volume_details_to_file():
     current_time = datetime.now().strftime("%Y%m%d%H%M%S")
-    with open(f'volume_changes_{current_time}.log', 'w') as file:
-        for detail in VOLUME_DETAILS_LIST:
-            file.write(json.dumps(detail) + '\n')
+    filename = f'volume_changes_{current_time}.csv'
+    headers = ["old_volume_id", "new_volume_id", "instance_id", "instance_name", "device_name", "disk_size", "snapshot_id", "availability_zone"]
+    
+    table = PrettyTable(field_names=headers)
+    for detail in VOLUME_DETAILS_LIST:
+        table.add_row([detail[h] for h in headers])
+
+    with open(filename, 'w') as file:
+        file.write(table.get_string())
 
 def process_volumes_for_instance(session, volumes, kms_key):
     instance_id = volumes[0]['Attachments'][0]['InstanceId']
@@ -145,10 +156,12 @@ def process_volumes_for_instance(session, volumes, kms_key):
     start_instance(session, instance_id)
 
 def main():
+    start_time = datetime.now()
+
     session = create_session()
     kms_key = get_kms_key_arn(session)
     if not kms_key:
-        print("Error: Could not retrieve the KMS key ARN. Exiting.")
+        logger.error("Error: Could not retrieve the KMS key ARN. Exiting.")
         return
 
     volume_info = get_volume_info(session)
@@ -163,8 +176,8 @@ def main():
 
     write_volume_details_to_file()
 
+    elapsed_time = datetime.now() - start_time
+    logger.info(f"Script completed in {elapsed_time}")
+
 if __name__ == '__main__':
     main()
-
-
-# Segregate the instances based on the availability zones to process.
