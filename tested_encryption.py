@@ -22,7 +22,7 @@ def robust_waiter(waiter, **kwargs):
         waiter.wait(
             **kwargs,
             WaiterConfig={
-                'Delay': 60,  # time in seconds between each check
+                'Delay': 120,  # time in seconds between each check
                 'MaxAttempts': 60  # maximum number of checks
             }
         )
@@ -165,3 +165,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+# Segregate the instances based on the availability zones to process.
