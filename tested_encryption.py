@@ -6,12 +6,15 @@ import botocore
 import logging
 from prettytable import PrettyTable
 
-# Global list to store volume details for the current script run
+# Global lists to store volume details and snapshots pending further processing
 VOLUME_DETAILS_LIST = []
+PENDING_SNAPSHOTS = []
 
 # Setup logging
 logging.basicConfig(filename='script_logs.log', level=logging.INFO)
 logger = logging.getLogger()
+
+MAX_RETRIES = 5
 
 def create_session():
     return boto3.Session(
@@ -30,8 +33,9 @@ def robust_waiter(waiter, **kwargs):
                 'MaxAttempts': 60
             }
         )
-    except botocore.exceptions.WaiterError:
-        logger.error(f"Waiter {waiter.name} failed for parameters: {kwargs}.")
+    except botocore.exceptions.WaiterError as e:
+        logger.error(f"Waiter failed for parameters: {kwargs}. Error: {str(e)}")
+        raise
 
 def get_instance_name(session, instance_id):
     ec2_client = session.client("ec2")
@@ -59,10 +63,8 @@ def create_snapshot(session, volume_id):
     ec2_client = session.client("ec2")
     response = ec2_client.create_snapshot(VolumeId=volume_id)
     snapshot_id = response['SnapshotId']
-
     waiter = ec2_client.get_waiter('snapshot_completed')
     robust_waiter(waiter, SnapshotIds=[snapshot_id])
-
     return snapshot_id
 
 def create_encrypted_volume(session, snapshot_id, availability_zone, size, volume_type, kms_key):
@@ -76,10 +78,8 @@ def create_encrypted_volume(session, snapshot_id, availability_zone, size, volum
         KmsKeyId=kms_key,
     )
     volume_id = response['VolumeId']
-
     waiter = ec2_client.get_waiter('volume_available')
     robust_waiter(waiter, VolumeIds=[volume_id])
-
     return volume_id
 
 def attach_encrypted_volume(session, encrypted_volume_id, instance_id, device_name):
@@ -93,21 +93,18 @@ def attach_encrypted_volume(session, encrypted_volume_id, instance_id, device_na
 def detach_volume(session, volume_id):
     ec2_client = session.client("ec2")
     ec2_client.detach_volume(VolumeId=volume_id)
-
     waiter = ec2_client.get_waiter('volume_available')
     robust_waiter(waiter, VolumeIds=[volume_id])
 
 def stop_instance(session, instance_id):
     ec2_client = session.client("ec2")
     ec2_client.stop_instances(InstanceIds=[instance_id])
-
     waiter = ec2_client.get_waiter('instance_stopped')
     robust_waiter(waiter, InstanceIds=[instance_id])
 
 def start_instance(session, instance_id):
     ec2_client = session.client("ec2")
     ec2_client.start_instances(InstanceIds=[instance_id])
-
     waiter = ec2_client.get_waiter('instance_running')
     robust_waiter(waiter, InstanceIds=[instance_id])
 
@@ -115,15 +112,13 @@ def log_volume_details(details):
     VOLUME_DETAILS_LIST.append(details)
 
 def write_volume_details_to_file():
-    current_time = datetime.now().strftime("%Y%m%d%H%M%S")
-    filename = f'volume_changes_{current_time}.csv'
-    headers = ["old_volume_id", "new_volume_id", "instance_id", "instance_name", "device_name", "disk_size", "snapshot_id", "availability_zone"]
+    table = PrettyTable()
+    table.field_names = ["Old Volume ID", "New Volume ID", "Instance ID", "Instance Name", "Device Name", "Disk Size", "Snapshot ID", "Availability Zone"]
     
-    table = PrettyTable(field_names=headers)
     for detail in VOLUME_DETAILS_LIST:
-        table.add_row([detail[h] for h in headers])
+        table.add_row([detail["old_volume_id"], detail["new_volume_id"], detail["instance_id"], detail["instance_name"], detail["device_name"], detail["disk_size"], detail["snapshot_id"], detail["availability_zone"]])
 
-    with open(filename, 'w') as file:
+    with open(f'volume_changes_{datetime.now().strftime("%Y%m%d%H%M%S")}.csv', 'w') as file:
         file.write(table.get_string())
 
 def process_volumes_for_instance(session, volumes, kms_key):
@@ -132,27 +127,65 @@ def process_volumes_for_instance(session, volumes, kms_key):
 
     for volume in volumes:
         volume_id = volume['VolumeId']
-        snapshot_id = create_snapshot(session, volume_id)
-        
-        encrypted_volume_id = create_encrypted_volume(session, snapshot_id, volume['AvailabilityZone'], volume['Size'], volume['VolumeType'], kms_key)
-        detach_volume(session, volume_id)
+        try:
+            snapshot_id = create_snapshot(session, volume_id)
+            encrypted_volume_id = create_encrypted_volume(session, snapshot_id, volume['AvailabilityZone'], volume['Size'], volume['VolumeType'], kms_key)
+            detach_volume(session, volume_id)
+            attach_encrypted_volume(session, encrypted_volume_id, instance_id, volume['Attachments'][0]['Device'])
 
-        attach_encrypted_volume(session, encrypted_volume_id, instance_id, volume['Attachments'][0]['Device'])
-
-        instance_name = get_instance_name(session, instance_id)
-        details = {
-            'old_volume_id': volume_id,
-            'new_volume_id': encrypted_volume_id,
-            'instance_id': instance_id,
-            'instance_name': instance_name,
-            'device_name': volume['Attachments'][0]['Device'],
-            'disk_size': volume['Size'],
-            'snapshot_id': snapshot_id,
-            'availability_zone': volume['AvailabilityZone']
-        }
-        log_volume_details(details)
+            instance_name = get_instance_name(session, instance_id)
+            details = {
+                'old_volume_id': volume_id,
+                'new_volume_id': encrypted_volume_id,
+                'instance_id': instance_id,
+                'instance_name': instance_name,
+                'device_name': volume['Attachments'][0]['Device'],
+                'disk_size': volume['Size'],
+                'snapshot_id': snapshot_id,
+                'availability_zone': volume['AvailabilityZone']
+            }
+            log_volume_details(details)
+        except botocore.exceptions.WaiterError:
+            PENDING_SNAPSHOTS.append({
+                'volume_id': volume_id,
+                'instance_id': instance_id,
+                'availability_zone': volume['AvailabilityZone'],
+                'size': volume['Size'],
+                'volume_type': volume['VolumeType'],
+                'kms_key': kms_key
+            })
+            logger.error(f"Snapshot creation for volume {volume_id} took too long. Adding to pending snapshots list.")
 
     start_instance(session, instance_id)
+
+def process_pending_snapshots(session):
+    ec2_client = session.client("ec2")
+    retry_count = 0
+
+    while PENDING_SNAPSHOTS and retry_count < MAX_RETRIES:
+        completed_snapshots = []
+
+        for pending_snapshot in PENDING_SNAPSHOTS:
+            volume_id = pending_snapshot['volume_id']
+            response = ec2_client.describe_volumes(VolumeIds=[volume_id])
+            volume_status = response['Volumes'][0]['State']
+
+            if volume_status == 'completed':
+                completed_snapshots.append(pending_snapshot)
+                snapshot_id = create_snapshot(session, volume_id)
+                encrypted_volume_id = create_encrypted_volume(session, snapshot_id, pending_snapshot['availability_zone'], pending_snapshot['size'], pending_snapshot['volume_type'], pending_snapshot['kms_key'])
+                detach_volume(session, volume_id)
+                attach_encrypted_volume(session, encrypted_volume_id, pending_snapshot['instance_id'], pending_snapshot['device_name'])
+
+        for completed_snapshot in completed_snapshots:
+            PENDING_SNAPSHOTS.remove(completed_snapshot)
+
+        if PENDING_SNAPSHOTS:
+            logger.info(f"Retrying processing of pending snapshots. Attempt {retry_count + 1} of {MAX_RETRIES}...")
+            retry_count += 1
+
+    if PENDING_SNAPSHOTS:
+        logger.error(f"Failed to process some snapshots even after {MAX_RETRIES} retries.")
 
 def main():
     start_time = datetime.now()
@@ -183,6 +216,10 @@ def main():
 
         for instance_id, volumes in instance_to_volumes_map.items():
             process_volumes_for_instance(session, volumes, kms_key)
+
+    if PENDING_SNAPSHOTS:
+        logger.info("Processing pending snapshots...")
+        process_pending_snapshots(session)
 
     write_volume_details_to_file()
 
