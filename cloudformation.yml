@@ -1,0 +1,22 @@
+Resources:
+  MyEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0c55b159cbfafe1f0  # Amazon Linux 2 LTS AMI (HVM), SSD Volume Type (ID might change based on the region)
+      InstanceType: t2.micro
+      KeyName: YourSSHKeyName
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            yum update -y
+            yum install -y python3 screen
+            pip3 install boto3 botocore prettytable
+            # Download your script
+            aws s3 cp s3://your-bucket-name/path/to/encryption.py /home/ec2-user/encryption.py
+            # Give execute permissions
+            chmod +x /home/ec2-user/encryption.py
+            # Setup CRON to run the script every day at 7 am
+            echo "0 7 * * * ec2-user screen -dmS my_script bash -c 'python3 /home/ec2-user/encryption.py'" >> /var/spool/cron/ec2-user
+            # Run the script now within a screen session
+            screen -dmS my_script bash -c 'python3 /home/ec2-user/encryption.py'
