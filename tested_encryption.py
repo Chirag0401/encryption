@@ -8,8 +8,9 @@ from prettytable import PrettyTable
 
 VOLUME_DETAILS_LIST = []
 PENDING_SNAPSHOTS = []
+FAILED_SNAPSHOTS = []
 
-logging.basicConfig(filename='script_logs.log', level=logging.INFO)
+logging.basicConfig(filename='script_logs.log', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger()
 
 MAX_RETRIES = 5
@@ -90,21 +91,30 @@ def attach_encrypted_volume(session, encrypted_volume_id, instance_id, device_na
 
 def detach_volume(session, volume_id):
     ec2_client = session.client("ec2")
+    start_time = datetime.now()
     ec2_client.detach_volume(VolumeId=volume_id)
     waiter = ec2_client.get_waiter('volume_available')
     robust_waiter(waiter, VolumeIds=[volume_id])
+    elapsed_time = datetime.now() - start_time
+    logger.info(f"Volume {volume_id} detached in {elapsed_time}")
 
 def stop_instance(session, instance_id):
     ec2_client = session.client("ec2")
+    start_time = datetime.now()
     ec2_client.stop_instances(InstanceIds=[instance_id])
     waiter = ec2_client.get_waiter('instance_stopped')
     robust_waiter(waiter, InstanceIds=[instance_id])
+    elapsed_time = datetime.now() - start_time
+    logger.info(f"Instance {instance_id} stopped in {elapsed_time}")
 
 def start_instance(session, instance_id):
     ec2_client = session.client("ec2")
+    start_time = datetime.now()
     ec2_client.start_instances(InstanceIds=[instance_id])
     waiter = ec2_client.get_waiter('instance_running')
     robust_waiter(waiter, InstanceIds=[instance_id])
+    elapsed_time = datetime.now() - start_time
+    logger.info(f"Instance {instance_id} started in {elapsed_time}")
 
 def log_volume_details(details):
     VOLUME_DETAILS_LIST.append(details)
@@ -174,6 +184,8 @@ def process_pending_snapshots(session):
                 encrypted_volume_id = create_encrypted_volume(session, snapshot_id, pending_snapshot['availability_zone'], pending_snapshot['size'], pending_snapshot['volume_type'], pending_snapshot['kms_key'])
                 detach_volume(session, volume_id)
                 attach_encrypted_volume(session, encrypted_volume_id, pending_snapshot['instance_id'], pending_snapshot['device_name'])
+            else:
+                FAILED_SNAPSHOTS.append(pending_snapshot)
 
         for completed_snapshot in completed_snapshots:
             PENDING_SNAPSHOTS.remove(completed_snapshot)
@@ -184,6 +196,8 @@ def process_pending_snapshots(session):
 
     if PENDING_SNAPSHOTS:
         logger.error(f"Failed to process some snapshots even after {MAX_RETRIES} retries.")
+        for failed in PENDING_SNAPSHOTS:
+            logger.error(f"Failed snapshot details: {failed}")
 
 def main():
     start_time = datetime.now()
