@@ -6,11 +6,9 @@ import botocore
 import logging
 from prettytable import PrettyTable
 
-# Global lists to store volume details and snapshots pending further processing
 VOLUME_DETAILS_LIST = []
 PENDING_SNAPSHOTS = []
 
-# Setup logging
 logging.basicConfig(filename='script_logs.log', level=logging.INFO)
 logger = logging.getLogger()
 
