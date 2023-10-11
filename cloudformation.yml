@@ -39,6 +39,10 @@ Resources:
             yum update -y
             yum install -y python3 screen
             pip3 install boto3 botocore prettytable
+            # Set AWS Credentials (not recommended; use IAM roles instead)
+            export AWS_ACCESS_KEY_ID=YourAccessKey
+            export AWS_SECRET_ACCESS_KEY=YourSecretAccessKey
+            export AWS_SESSION_TOKEN=YourSessionToken
             # Download your script
             aws s3 cp s3://your-bucket-name/path/to/encryption.py /home/ec2-user/encryption.py
             # Give execute permissions
