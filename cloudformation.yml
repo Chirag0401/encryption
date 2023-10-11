@@ -1,10 +1,37 @@
 Resources:
+  MyInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref MyInstanceRole
+
+  MyInstanceRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "ec2.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "S3AccessPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action: "s3:GetObject"
+                Resource: "arn:aws:s3:::your-bucket-name/path/to/encryption.py"
+
   MyEC2Instance:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-0c55b159cbfafe1f0  # Amazon Linux 2 LTS AMI (HVM), SSD Volume Type (ID might change based on the region)
+      ImageId: ami-0c55b159cbfafe1f0
       InstanceType: t2.micro
       KeyName: YourSSHKeyName
+      IamInstanceProfile: !Ref MyInstanceProfile
       UserData:
         Fn::Base64:
           !Sub |
