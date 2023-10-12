@@ -4,36 +4,23 @@ import pandas as pd
 
 AWS_ACCESS_KEY = os.environ.get('AWS_ACCESS_KEY')
 AWS_SECRET_KEY = os.environ.get('AWS_SECRET_KEY')
-SESSION_TOKEN = os.environ.get('AWS_SESSION_TOKEN')
-REGION_NAME = os.environ.get('AWS_REGION')
+AWS_SESSION_TOKEN = os.environ.get('AWS_SESSION_TOKEN')  
+REGION_NAME = os.environ.get('REGION_NAME')
 
-ec2_client = boto3.client('ec2', 
-                          aws_access_key_id=AWS_ACCESS_KEY, 
-                          aws_secret_access_key=AWS_SECRET_KEY, 
-                          region_name=REGION_NAME,
-                          aws_session_token=SESSION_TOKEN)
+ec2_client = boto3.client('ec2', aws_access_key_id=AWS_ACCESS_KEY, aws_secret_access_key=AWS_SECRET_KEY, aws_session_token=AWS_SESSION_TOKEN, region_name=REGION_NAME)
 
-def get_existing_sg_ips(sg_id):
-    """Retrieve the existing IPs from a given security group."""
+def remove_existing_ips(sg_id):
+    """Remove all existing IPs from the specified security group."""
     response = ec2_client.describe_security_groups(GroupIds=[sg_id])
     permissions = response['SecurityGroups'][0]['IpPermissions']
-    
+
     existing_ips = []
     for permission in permissions:
         if permission['FromPort'] == 443 and permission['ToPort'] == 443 and permission['IpProtocol'] == 'tcp':
             for range in permission['IpRanges']:
                 existing_ips.append(range['CidrIp'])
-                
-    return existing_ips
 
-def update_security_group(sg_id, new_ips):
-    """Update the security group with the new set of IPs."""
-    existing_ips = get_existing_sg_ips(sg_id)
-    
-    ips_to_revoke = list(set(existing_ips) - set(new_ips))
-    ips_to_authorize = list(set(new_ips) - set(existing_ips))
-
-    if ips_to_revoke:
+    if existing_ips:
         ec2_client.revoke_security_group_ingress(
             GroupId=sg_id,
             IpPermissions=[
@@ -41,37 +28,32 @@ def update_security_group(sg_id, new_ips):
                     'IpProtocol': 'tcp',
                     'FromPort': 443,
                     'ToPort': 443,
-                    'IpRanges': [{'CidrIp': ip} for ip in ips_to_revoke]
+                    'IpRanges': [{'CidrIp': ip} for ip in existing_ips]
                 }
             ]
         )
-    
-    if ips_to_authorize:
-        ec2_client.authorize_security_group_ingress(
-            GroupId=sg_id,
-            IpPermissions=[
-                {
-                    'IpProtocol': 'tcp',
-                    'FromPort': 443,
-                    'ToPort': 443,
-                    'IpRanges': [{'CidrIp': ip} for ip in ips_to_authorize[:60]]
-                }
-            ]
-        )
-        left_out_ips = ips_to_authorize[60:]
-        return left_out_ips
-    
-    return []
 
-def create_security_group(vpc_id, left_out_ips):
-    """Create a new security group and assign it the remaining set of IPs."""
+def get_next_available_sg_name(base_name):
+    """Find the next available name for the security group."""
+    count = 1
+    while True:
+        potential_name = f"{base_name}-{count}"
+        sgs = ec2_client.describe_security_groups(Filters=[{'Name': 'group-name', 'Values': [potential_name]}])
+        if not sgs['SecurityGroups']:
+            return potential_name
+        count += 1
+
+def create_security_group(vpc_id, base_name, ips):
+    """Create a new security group and add the specified IPs to it."""
+    new_sg_name = get_next_available_sg_name(base_name)
+    
     response = ec2_client.create_security_group(
-        GroupName='AkamaiIPs',
-        Description='Security group for leftover Akamai IPs',
+        GroupName=new_sg_name,
+        Description=f"Security group for Akamai IPs {new_sg_name.split('-')[-1]}",
         VpcId=vpc_id
     )
     new_sg_id = response['GroupId']
-    
+
     ec2_client.authorize_security_group_ingress(
         GroupId=new_sg_id,
         IpPermissions=[
@@ -79,27 +61,50 @@ def create_security_group(vpc_id, left_out_ips):
                 'IpProtocol': 'tcp',
                 'FromPort': 443,
                 'ToPort': 443,
-                'IpRanges': [{'CidrIp': ip} for ip in left_out_ips]
+                'IpRanges': [{'CidrIp': ip} for ip in ips]
             }
         ]
     )
     return new_sg_id
 
 def main():
-    """Main execution function."""
-    akamai_sg_prefix = 'akamai'
     vpc_id = 'your_vpc_id'
-
+    
+    # Load new IPs from Excel
     df = pd.read_excel('path_to_excel.xlsx')
-    new_ips = df['IPs'].tolist()
+    new_ips = df['IP Address Range'].tolist() 
 
-    sgs = ec2_client.describe_security_groups()
-    for sg in sgs['SecurityGroups']:
-        if sg['GroupName'].startswith(akamai_sg_prefix):
-            left_out_ips = update_security_group(sg['GroupId'], new_ips)
-            if left_out_ips:
-                new_sg_id = create_security_group(vpc_id, left_out_ips)
-                print(f"Created new security group {new_sg_id} for leftover IPs.")
+    security_group_names = ['akamai-sg-1']  # Start with one SG for testing
+
+    for sg_name in security_group_names:
+        sgs = ec2_client.describe_security_groups(Filters=[{'Name': 'group-name', 'Values': [sg_name]}])
+        sg_id = sgs['SecurityGroups'][0]['GroupId']
+
+        # Remove old IPs
+        remove_existing_ips(sg_id)
+
+        # Add the new IPs in chunks of 60
+        while new_ips:
+            ips_chunk = new_ips[:60]
+            new_ips = new_ips[60:]
+
+            # If it's the original SG we're updating, use its ID directly
+            if sg_name == security_group_names[0] and not new_ips:
+                ec2_client.authorize_security_group_ingress(
+                    GroupId=sg_id,
+                    IpPermissions=[
+                        {
+                            'IpProtocol': 'tcp',
+                            'FromPort': 443,
+                            'ToPort': 443,
+                            'IpRanges': [{'CidrIp': ip} for ip in ips_chunk]
+                        }
+                    ]
+                )
+            else:
+                # Otherwise, create a new SG and add IPs to it
+                new_sg_id = create_security_group(vpc_id, "akamai-sg", ips_chunk)
+                print(f"Created new security group {new_sg_id} for Akamai IPs.")
 
 if __name__ == "__main__":
     main()
