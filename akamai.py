@@ -12,7 +12,7 @@ ec2_client = boto3.client('ec2', aws_access_key_id=AWS_ACCESS_KEY, aws_secret_ac
 def remove_existing_ips(sg_id):
     """Remove all existing IPs from the specified security group."""
     response = ec2_client.describe_security_groups(GroupIds=[sg_id])
-    permissions = response['SecurityGroups'][0]['IpPermissions']
+    permissions = response.get('SecurityGroups', [{}])[0].get('IpPermissions', [])
 
     existing_ips = []
     for permission in permissions:
@@ -39,7 +39,7 @@ def get_next_available_sg_name(base_name):
     while True:
         potential_name = f"{base_name}-{count}"
         sgs = ec2_client.describe_security_groups(Filters=[{'Name': 'group-name', 'Values': [potential_name]}])
-        if not sgs['SecurityGroups']:
+        if not sgs.get('SecurityGroups', []):
             return potential_name
         count += 1
 
@@ -52,7 +52,10 @@ def create_security_group(vpc_id, base_name, ips):
         Description=f"Security group for Akamai IPs {new_sg_name.split('-')[-1]}",
         VpcId=vpc_id
     )
-    new_sg_id = response['GroupId']
+    new_sg_id = response.get('GroupId')
+
+    if not new_sg_id:
+        raise ValueError("Failed to create a new security group")
 
     ec2_client.authorize_security_group_ingress(
         GroupId=new_sg_id,
@@ -78,7 +81,10 @@ def main():
 
     for sg_name in security_group_names:
         sgs = ec2_client.describe_security_groups(Filters=[{'Name': 'group-name', 'Values': [sg_name]}])
-        sg_id = sgs['SecurityGroups'][0]['GroupId']
+        sg_id = sgs.get('SecurityGroups', [{}])[0].get('GroupId')
+
+        if not sg_id:
+            continue
 
         # Remove old IPs
         remove_existing_ips(sg_id)
@@ -104,9 +110,9 @@ def main():
             else:
                 # Otherwise, create a new SG and add IPs to it
                 new_sg_id = create_security_group(vpc_id, "akamai-sg", ips_chunk)
-                print(f"Created new security group {new_sg_id} for Akamai IPs.")
+                print(f"Created new security group {new_sg_id} and added IPs")
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
 
 
