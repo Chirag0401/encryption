@@ -110,6 +110,33 @@ if __name__ == "__main__":
     main()
 
 
+# BCS_PATCH_MGT_2-[ec2-user@ip-10-140-238-37 Akamai]$ python3 akamai.py
+# Traceback (most recent call last):
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/core/indexes/base.py", line 3361, in get_loc
+#     return self._engine.get_loc(casted_key)
+#   File "pandas/_libs/index.pyx", line 76, in pandas._libs.index.IndexEngine.get_loc
+#   File "pandas/_libs/index.pyx", line 108, in pandas._libs.index.IndexEngine.get_loc
+#   File "pandas/_libs/hashtable_class_helper.pxi", line 5198, in pandas._libs.hashtable.PyObjectHashTable.get_item
+#   File "pandas/_libs/hashtable_class_helper.pxi", line 5206, in pandas._libs.hashtable.PyObjectHashTable.get_item
+# KeyError: 'IP Address Range'
+
+# The above exception was the direct cause of the following exception:
+
+# Traceback (most recent call last):
+#   File "akamai.py", line 111, in <module>
+#     main()
+#   File "akamai.py", line 75, in main
+#     new_ips = df['IP Address Range'].tolist()
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/core/frame.py", line 3458, in __getitem__
+#     indexer = self.columns.get_loc(key)
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/core/indexes/base.py", line 3363, in get_loc
+#     raise KeyError(key) from err
+# KeyError: 'IP Address Range'
+
+
+
+
+
 # So to summarise our call earlier, the Python looks fine with the following comments:
 
  
