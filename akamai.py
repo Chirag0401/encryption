@@ -162,3 +162,24 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+
+
+# BCS_PATCH_MGT_2-[ec2-user@ip-10-140-238-37 Akamai]$ python3 akamai.py
+# Enter the name of the sheet you want to use: APAC_Staging_GTM
+# Created new security group sg-05905c482d6793d05 and added IPs
+# Created new security group sg-01df672ea89af5145 and added IPs
+# Traceback (most recent call last):
+#   File "akamai.py", line 165, in <module>
+#     main()
+#   File "akamai.py", line 156, in main
+#     new_sg_id = create_security_group(vpc_id, "akamai-sg", ips_chunk)
+#   File "akamai.py", line 84, in create_security_group
+#     'IpRanges': [{'CidrIp': ip} for ip in ips]
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/botocore/client.py", line 535, in _api_call
+#     return self._make_api_call(operation_name, kwargs)
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/botocore/client.py", line 980, in _make_api_call
+#     raise error_class(parsed_response, operation_name)
+# botocore.exceptions.ClientError: An error occurred (InvalidParameterValue) when calling the AuthorizeSecurityGroupIngress operation: CIDR block 2600:14a0::/40 is malformed
+
