@@ -98,19 +98,20 @@ def create_combined_security_group(vpc_id, sg_ids):
         )
     return combined_sg_id
 
+# ... [rest of the imports and initializations]
+
 def main():
     sheet_name = input('Enter the name of the sheet you want to use: ')
     new_ips = load_ips_from_excel(sheet_name)
 
     vpc_id = 'your_vpc_id'
     
-    security_group_names = ['akamai-sg-1']  # Start with one SG for testing
+    security_group_names = ['akamai-sg-1', 'akamai-sg-2']  # Example list with multiple SGs
     created_sg_ids = []
 
     for sg_name in security_group_names:
         sgs = ec2_client.describe_security_groups(Filters=[{'Name': 'group-name', 'Values': [sg_name]}])
         sg_id = sgs.get('SecurityGroups', [{}])[0].get('GroupId')
-        created_sg_ids.append(sg_id)
 
         if not sg_id:
             continue
@@ -118,29 +119,32 @@ def main():
         # Remove old IPs
         remove_existing_ips(sg_id)
 
-        # Add the new IPs in chunks of 60
-        while new_ips:
+        # If there are IPs left, add them to the existing SG
+        if new_ips:
             ips_chunk = new_ips[:60]
             new_ips = new_ips[60:]
 
-            # If it's the original SG we're updating, use its ID directly
-            if sg_name == security_group_names[0] and not new_ips:
-                ec2_client.authorize_security_group_ingress(
-                    GroupId=sg_id,
-                    IpPermissions=[
-                        {
-                            'IpProtocol': 'tcp',
-                            'FromPort': 443,
-                            'ToPort': 443,
-                            'IpRanges': [{'CidrIp': ip} for ip in ips_chunk]
-                        }
-                    ]
-                )
-            else:
-                # Otherwise, create a new SG and add IPs to it
-                new_sg_id = create_security_group(vpc_id, "akamai-sg", ips_chunk)
-                created_sg_ids.append(new_sg_id)
-                print(f"Created new security group {new_sg_id} and added IPs")
+            ec2_client.authorize_security_group_ingress(
+                GroupId=sg_id,
+                IpPermissions=[
+                    {
+                        'IpProtocol': 'tcp',
+                        'FromPort': 443,
+                        'ToPort': 443,
+                        'IpRanges': [{'CidrIp': ip} for ip in ips_chunk]
+                    }
+                ]
+            )
+            created_sg_ids.append(sg_id)
+
+    # If there are still IPs left, create new SGs for them
+    while new_ips:
+        ips_chunk = new_ips[:60]
+        new_ips = new_ips[60:]
+
+        new_sg_id = create_security_group(vpc_id, "akamai-sg", ips_chunk)
+        created_sg_ids.append(new_sg_id)
+        print(f"Created new security group {new_sg_id} and added IPs")
 
     # Create the combined security group
     combined_sg_id = create_combined_security_group(vpc_id, created_sg_ids)
