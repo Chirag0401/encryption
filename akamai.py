@@ -13,8 +13,7 @@ ec2_client = boto3.client('ec2', aws_access_key_id=AWS_ACCESS_KEY, aws_secret_ac
 def is_ipv4(ip):
     """Check if the given IP is IPv4."""
     try:
-        ipaddress.ip_address(ip.split('/')[0])
-        return True
+        return ipaddress.ip_address(ip.split('/')[0]).version == 4
     except ValueError:
         return False
 
@@ -30,23 +29,10 @@ def remove_existing_ips(sg_id):
     response = ec2_client.describe_security_groups(GroupIds=[sg_id])
     permissions = response.get('SecurityGroups', [{}])[0].get('IpPermissions', [])
 
-    existing_ips = []
-    for permission in permissions:
-        if permission['FromPort'] == 443 and permission['ToPort'] == 443 and permission['IpProtocol'] == 'tcp':
-            for range in permission['IpRanges']:
-                existing_ips.append(range['CidrIp'])
-
-    if existing_ips:
+    if permissions:
         ec2_client.revoke_security_group_ingress(
             GroupId=sg_id,
-            IpPermissions=[
-                {
-                    'IpProtocol': 'tcp',
-                    'FromPort': 443,
-                    'ToPort': 443,
-                    'IpRanges': [{'CidrIp': ip} for ip in existing_ips]
-                }
-            ]
+            IpPermissions=permissions
         )
 
 def get_next_available_sg_name(base_name):
@@ -162,24 +148,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
-
-# BCS_PATCH_MGT_2-[ec2-user@ip-10-140-238-37 Akamai]$ python3 akamai.py
-# Enter the name of the sheet you want to use: APAC_Staging_GTM
-# Created new security group sg-05905c482d6793d05 and added IPs
-# Created new security group sg-01df672ea89af5145 and added IPs
-# Traceback (most recent call last):
-#   File "akamai.py", line 165, in <module>
-#     main()
-#   File "akamai.py", line 156, in main
-#     new_sg_id = create_security_group(vpc_id, "akamai-sg", ips_chunk)
-#   File "akamai.py", line 84, in create_security_group
-#     'IpRanges': [{'CidrIp': ip} for ip in ips]
-#   File "/home/ec2-user/.local/lib/python3.7/site-packages/botocore/client.py", line 535, in _api_call
-#     return self._make_api_call(operation_name, kwargs)
-#   File "/home/ec2-user/.local/lib/python3.7/site-packages/botocore/client.py", line 980, in _make_api_call
-#     raise error_class(parsed_response, operation_name)
-# botocore.exceptions.ClientError: An error occurred (InvalidParameterValue) when calling the AuthorizeSecurityGroupIngress operation: CIDR block 2600:14a0::/40 is malformed
-
