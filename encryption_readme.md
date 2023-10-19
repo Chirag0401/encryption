@@ -4,54 +4,57 @@ This script provides an automated way to encrypt unencrypted Amazon Elastic Bloc
 Overview
 EBS volumes that are in use and not encrypted are identified, snapshots are taken of these volumes, encrypted volumes are created from the snapshots, and then these encrypted volumes are reattached to the original instances in place of the unencrypted volumes.
 
-Functions
-1. create_session()
-Establishes an AWS session using credentials from environment variables.
+Initialization:
 
-2. robust_waiter(waiter, **kwargs)
-Waits for a particular AWS resource to reach a specific state. If the resource doesn't reach the desired state within the specified wait time, an error is logged.
+Set up logging.
+Define the maximum number of retries (MAX_RETRIES).
+Read the excluded instance IDs from a CSV file into the EXCLUDED_INSTANCES list.
+Function Definitions:
 
-3. get_instance_name(session, instance_id)
-Retrieves the name of an EC2 instance using its instance ID.
-
-4. get_kms_key_arn(session, alias_name='alias/aws/ebs')
-Fetches the ARN of a KMS key using its alias.
-
-5. get_volume_info(session)
-Returns information about all EBS volumes in the region.
-
-6. create_snapshot(session, volume_id)
-Creates a snapshot for a given EBS volume and waits for the snapshot to be completed.
-
-7. create_encrypted_volume(session, snapshot_id, availability_zone, size, volume_type, kms_key)
+create_session():
+Creates and returns a new boto3 session using AWS credentials from the environment variables.
+read_excluded_instances_from_csv(file_path):
+Reads instance IDs from a given CSV file and returns them as a list.
+robust_waiter(waiter, **kwargs):
+A wrapper around boto3's waiter to add retry logic and error handling.
+get_instance_name(session, instance_id):
+Returns the name of an EC2 instance given its ID.
+get_kms_key_arn(session, alias_name='alias/aws/ebs'):
+Retrieves the ARN of a KMS key based on its alias.
+get_volume_info(session):
+Returns information about all the EBS volumes.
+create_snapshot(session, volume_id):
+Creates a snapshot of a given volume and waits for its completion.
+create_encrypted_volume(session, snapshot_id, availability_zone, size, volume_type, kms_key):
 Creates an encrypted EBS volume from a given snapshot.
-
-8. attach_encrypted_volume(session, encrypted_volume_id, instance_id, device_name)
-Attaches an encrypted EBS volume to an EC2 instance.
-
-9. detach_volume(session, volume_id)
-Detaches an EBS volume from its associated EC2 instance.
-
-10. stop_instance(session, instance_id)
+attach_encrypted_volume(session, encrypted_volume_id, instance_id, device_name):
+Attaches an encrypted volume to an EC2 instance.
+detach_volume(session, volume_id):
+Detaches an EBS volume from its attached instance.
+stop_instance(session, instance_id):
 Stops an EC2 instance.
-
-11. start_instance(session, instance_id)
+start_instance(session, instance_id):
 Starts an EC2 instance.
+log_volume_details(details):
+Logs details about volume changes to a CSV file.
+process_volumes_for_instance(session, volumes, kms_key):
+For a given EC2 instance, this function stops the instance, creates encrypted volumes from its attached volumes, and then starts the instance.
+process_pending_snapshots(session):
+Processes any snapshots that are still pending.
+Main Execution (main() function):
 
-12. log_volume_details(details)
-Logs the details of volume changes.
+Log headers to a CSV file.
+Create a boto3 session.
+Get the KMS key ARN.
+Retrieve information about all EBS volumes.
+Organize volumes by their availability zones and attached instances.
+For each availability zone and each instance in that zone, if the instance is not in the EXCLUDED_INSTANCES list, process its volumes.
+If there are any pending snapshots, process them.
+Log the total execution time.
+Script Execution:
 
-13. write_volume_details_to_file()
-Writes the volume change details to a CSV file.
-
-14. process_volumes_for_instance(session, volumes, kms_key)
-Processes the EBS volumes attached to an EC2 instance, encrypting them as needed.
-
-15. process_pending_snapshots(session)
-Processes any snapshots that took longer than expected to complete.
-
-16. main()
-Main execution function that coordinates the entire process.
+If the script is run as the main module, the main() function is called.
+The flow of the script is essentially about identifying unencrypted EBS volumes attached to EC2 instances, creating encrypted snapshots of those volumes, and then creating encrypted volumes from those snapshots. The original volumes are then replaced with the new encrypted volumes. The script also handles instances that are specified to be excluded from this process.
 
 Working
 A session with AWS is created.
