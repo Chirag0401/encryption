@@ -1,19 +1,22 @@
 import boto3
 import os
+import csv
 from datetime import datetime
 from collections import defaultdict
 import botocore
 import logging
 
-VOLUME_DETAILS_LIST = []
-PENDING_SNAPSHOTS = []
-FAILED_SNAPSHOTS = []
-EXCLUDED_INSTANCES = ['instance-id-1', 'instance-id-2']  # Add your instance IDs here
-
 logging.basicConfig(filename='script_logs.log', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger()
 
 MAX_RETRIES = 5
+
+def read_excluded_instances_from_csv(file_path):
+    with open(file_path, 'r') as file:
+        reader = csv.reader(file)
+        return [row[0] for row in reader]
+
+EXCLUDED_INSTANCES = read_excluded_instances_from_csv('path_to_your_csv_file.csv')
 
 def create_session():
     return boto3.Session(
