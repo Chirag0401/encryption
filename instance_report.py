@@ -97,15 +97,17 @@ def get_instance_details(session):
                     })
 
         # CPU Utilization from CloudWatch
+        end_time = datetime.datetime.utcnow()
+        start_time = end_time - datetime.timedelta(days=30)
         cpu_stats = cloudwatch.get_metric_statistics(
-            Namespace='AWS/EC2',
-            MetricName='CPUUtilization',
-            Dimensions=[{'Name': 'InstanceId', 'Value': instance.id}],
-            StartTime=instance.launch_time,
-            EndTime=pd.Timestamp.now(tz="UTC"),
-            Period=3600,
-            Statistics=['Average']
-        )
+        Namespace='AWS/EC2',
+        MetricName='CPUUtilization',
+        Dimensions=[{'Name': 'InstanceId', 'Value': instance.id}],
+        StartTime=start_time,
+        EndTime=end_time,
+        Period=3600,
+        Statistics=['Average']
+    )
         if cpu_stats['Datapoints']:
             instance_data['Average CPU Utilization'] = cpu_stats['Datapoints'][0]['Average']
 
