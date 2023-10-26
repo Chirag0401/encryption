@@ -145,3 +145,19 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+# [ec2-user@ip-10-140-241-119 ec2]$ python3 instance_report.py
+# Traceback (most recent call last):
+#   File "instance_report.py", line 147, in <module>
+#     main()
+#   File "instance_report.py", line 143, in main
+#     data = get_instance_details(session)
+#   File "instance_report.py", line 107, in get_instance_details
+#     Statistics=['Average']
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/botocore/client.py", line 415, in _api_call
+#     return self._make_api_call(operation_name, kwargs)
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/botocore/client.py", line 745, in _make_api_call
+#     raise error_class(parsed_response, operation_name)
+# botocore.errorfactory.InvalidParameterCombinationException: An error occurred (InvalidParameterCombination) when calling the GetMetricStatistics operation: You have requested up to 2005 datapoints, which exceeds the limit of 1440. You may reduce the datapoints requested by increasing Period, or decreasing the time range.
