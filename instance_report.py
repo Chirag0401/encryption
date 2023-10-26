@@ -1,6 +1,7 @@
 import boto3
 import os
 import pandas as pd
+import datetime
 
 def create_session():
     """Create a boto3 session using environment variables."""
@@ -148,18 +149,26 @@ def main():
 if __name__ == "__main__":
     main()
 
-
-
 # [ec2-user@ip-10-140-241-119 ec2]$ python3 instance_report.py
 # Traceback (most recent call last):
-#   File "instance_report.py", line 147, in <module>
+#   File "instance_report.py", line 150, in <module>
 #     main()
-#   File "instance_report.py", line 143, in main
-#     data = get_instance_details(session)
-#   File "instance_report.py", line 107, in get_instance_details
-#     Statistics=['Average']
-#   File "/home/ec2-user/.local/lib/python3.7/site-packages/botocore/client.py", line 415, in _api_call
-#     return self._make_api_call(operation_name, kwargs)
-#   File "/home/ec2-user/.local/lib/python3.7/site-packages/botocore/client.py", line 745, in _make_api_call
-#     raise error_class(parsed_response, operation_name)
-# botocore.errorfactory.InvalidParameterCombinationException: An error occurred (InvalidParameterCombination) when calling the GetMetricStatistics operation: You have requested up to 2005 datapoints, which exceeds the limit of 1440. You may reduce the datapoints requested by increasing Period, or decreasing the time range.
+#   File "instance_report.py", line 147, in main
+#     generate_report_with_pandas(data)
+#   File "instance_report.py", line 141, in generate_report_with_pandas
+#     df.to_excel(writer, sheet_name='Instances', index=False)
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/core/generic.py", line 2291, in to_excel
+#     storage_options=storage_options,
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/io/formats/excel.py", line 845, in write
+#     freeze_panes=freeze_panes,
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/io/excel/_openpyxl.py", line 457, in write_cells
+#     for cell in cells:
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/io/formats/excel.py", line 778, in get_formatted_cells
+#     cell.val = self._format_value(cell.val)
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/io/formats/excel.py", line 527, in _format_value
+#     "Excel does not support datetimes with "
+# ValueError: Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel.
+# [ec2-user@ip-10-140-241-119 ec2]$
+
+
+
