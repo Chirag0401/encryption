@@ -152,3 +152,22 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+
+# KeyError: 'IP Address Range'
+
+# The above exception was the direct cause of the following exception:
+
+# Traceback (most recent call last):
+#   File "akamai.py", line 153, in <module>
+#     main()
+#   File "akamai.py", line 104, in main
+#     new_ips = load_ips_from_excel(sheet_name)
+#   File "akamai.py", line 23, in load_ips_from_excel
+#     all_ips = df['IP Address Range'].tolist()
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/core/frame.py", line 3458, in __getitem__
+#     indexer = self.columns.get_loc(key)
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/core/indexes/base.py", line 3363, in get_loc
+#     raise KeyError(key) from err
+# KeyError: 'IP Address Range'
