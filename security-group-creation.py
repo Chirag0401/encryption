@@ -102,3 +102,19 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+# [ec2-user@ip-10-140-241-119 sg-creation]$ python3 sg-creation.py
+# Enter the VPC ID: vpc-05398baa4fb7c969c
+# Enter the IP Protocol (e.g., tcp, udp): tcp
+# Enter the port or port range (e.g., 80 or 9000-9098): 22
+# Enter the security group names in which you want to make changes that already exists separated by comma:
+# Enter the base name for new security groups: test-sg-22-port
+# Enter the name of the sheet you want to use: 22
+# Traceback (most recent call last):
+#   File "sg-creation.py", line 104, in <module>
+#     main()
+#   File "sg-creation.py", line 68, in main
+#     sg_id = sgs.get('SecurityGroups', [{}])[0].get('GroupId')
+# IndexError: list index out of range
+
