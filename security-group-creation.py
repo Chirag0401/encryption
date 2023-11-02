@@ -63,11 +63,15 @@ def main():
     base_sg_name = input('Enter the base name for new security groups: ')
     sheet_name = input('Enter the name of the sheet you want to use: ')
     new_ips = load_ips_from_excel(sheet_name)
+    # If there are security group names provided, update them
     for sg_name in security_group_names:
-        sgs = ec2_client.describe_security_groups(Filters=[{'Name': 'group-name', 'Values': [sg_name]}])
-        sg_id = sgs.get('SecurityGroups', [{}])[0].get('GroupId')
-        if not sg_id:
+        if not sg_name:  # Skip empty names
             continue
+        sgs = ec2_client.describe_security_groups(Filters=[{'Name': 'group-name', 'Values': [sg_name]}])
+        if not sgs.get('SecurityGroups'):
+            print(f"No security group found with the name {sg_name}. Skipping...")
+            continue
+        sg_id = sgs['SecurityGroups'][0]['GroupId']
         remove_existing_ips(sg_id)
         if new_ips:
             ips_chunk = new_ips[:195]
@@ -83,6 +87,8 @@ def main():
                     }
                 ]
             )
+    
+    # Create new security groups for remaining IPs
     while new_ips:
         ips_chunk = new_ips[:195]
         new_ips = new_ips[195:]
