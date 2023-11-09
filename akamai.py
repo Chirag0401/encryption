@@ -50,8 +50,28 @@ def create_security_group(vpc_id, sg_name, ips):
     )
     return new_sg_id
 
+def rule_exists(sg_rules, ip, from_port=443, to_port=443, ip_protocol='tcp'):
+    """Check if a specific rule already exists in the security group."""
+    for rule in sg_rules:
+        for ip_range in rule.get('IpRanges', []):
+            if (rule.get('FromPort') == from_port and
+                rule.get('ToPort') == to_port and
+                rule.get('IpProtocol') == ip_protocol and
+                ip_range.get('CidrIp') == ip):
+                return True
+    return False
+
 def add_ips_to_sg(sg_id, ips):
-    """Attempt to add IPs to a security group and handle quota exceedance."""
+    """Attempt to add IPs to a security group, skipping existing rules."""
+    sg_info = ec2_client.describe_security_groups(GroupIds=[sg_id])
+    existing_rules = sg_info['SecurityGroups'][0]['IpPermissions']
+
+    ips_to_add = [ip for ip in ips if not rule_exists(existing_rules, ip)]
+
+    if not ips_to_add:
+        print("No new IPs to add; all IPs already exist in the security group.")
+        return True
+
     try:
         ec2_client.authorize_security_group_ingress(
             GroupId=sg_id,
@@ -60,11 +80,11 @@ def add_ips_to_sg(sg_id, ips):
                     'IpProtocol': 'tcp',
                     'FromPort': 443,
                     'ToPort': 443,
-                    'IpRanges': [{'CidrIp': ip} for ip in ips]
+                    'IpRanges': [{'CidrIp': ip} for ip in ips_to_add]
                 }
             ]
         )
-        print(f"Added {len(ips)} IPs to the security group {sg_id}.")
+        print(f"Added {len(ips_to_add)} IPs to the security group {sg_id}.")
     except Exception as e:
         print(f"An error occurred: {e}")
         if "RulesPerSecurityGroupLimitExceeded" in str(e):
@@ -106,4 +126,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-#An error occurred: An error occurred (InvalidPermission.Duplicate) when calling the AuthorizeSecurityGroupIngress operation: the specified rule "peer: 104.115.39.0/24, TCP, from port: 443, to port: 443, ALLOW" already exists
