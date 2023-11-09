@@ -66,7 +66,12 @@ def add_ips_to_sg(sg_id, ips):
     sg_info = ec2_client.describe_security_groups(GroupIds=[sg_id])
     existing_rules = sg_info['SecurityGroups'][0]['IpPermissions']
 
-    ips_to_add = [ip for ip in ips if not rule_exists(existing_rules, ip)]
+    ips_to_add = []
+    for ip in ips:
+        if not rule_exists(existing_rules, ip):
+            ips_to_add.append(ip)
+        else:
+            print(f"IP {ip} already exists in the security group {sg_id}, skipping.")
 
     if not ips_to_add:
         print("No new IPs to add; all IPs already exist in the security group.")
