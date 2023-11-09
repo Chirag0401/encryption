@@ -50,6 +50,27 @@ def create_security_group(vpc_id, sg_name, ips):
     )
     return new_sg_id
 
+def add_ips_to_sg(sg_id, ips):
+    """Attempt to add IPs to a security group and handle quota exceedance."""
+    try:
+        ec2_client.authorize_security_group_ingress(
+            GroupId=sg_id,
+            IpPermissions=[
+                {
+                    'IpProtocol': 'tcp',
+                    'FromPort': 443,
+                    'ToPort': 443,
+                    'IpRanges': [{'CidrIp': ip} for ip in ips]
+                }
+            ]
+        )
+        print(f"Added {len(ips)} IPs to the security group {sg_id}.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        if "RulesPerSecurityGroupLimitExceeded" in str(e):
+            return False
+    return True
+
 def main():
     sheet_name = input('Enter the name of the sheet you want to use: ')
     new_ips = load_ips_from_excel(sheet_name)
@@ -67,8 +88,14 @@ def main():
             print(f"No security group found with the name {security_group_name}")
             return
 
-        # Add IPs to the existing security group
-        # [Existing logic for adding IPs to the existing security group]
+        # Add new IPs to the existing security group
+        success = add_ips_to_sg(sg_id, new_ips)
+        if not success:
+            create_new_sg = input("The limit is exceeded. Do you want to create a new security group for the remaining IPs? (yes/no): ")
+            if create_new_sg.lower() == 'yes':
+                new_sg_name = input("Enter the name for the new security group: ")
+                new_sg_id = create_security_group(vpc_id, new_sg_name, new_ips)
+                print(f"Created new security group {new_sg_id} and added {len(new_ips)} IPs.")
 
     else:
         # Logic for creating a new security group
