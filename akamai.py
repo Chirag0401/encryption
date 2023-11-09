@@ -106,3 +106,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+#An error occurred: An error occurred (InvalidPermission.Duplicate) when calling the AuthorizeSecurityGroupIngress operation: the specified rule "peer: 104.115.39.0/24, TCP, from port: 443, to port: 443, ALLOW" already exists
