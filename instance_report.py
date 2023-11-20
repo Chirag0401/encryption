@@ -102,3 +102,24 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+# Traceback (most recent call last):
+#   File "instance_report.py", line 104, in <module>
+#     main()
+#   File "instance_report.py", line 101, in main
+#     generate_report_with_pandas(data, report_filename)
+#   File "instance_report.py", line 93, in generate_report_with_pandas
+#     df.to_excel(writer, sheet_name='Instances', index=False)
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/core/generic.py", line 2291, in to_excel
+#     storage_options=storage_options,
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/io/formats/excel.py", line 845, in write
+#     freeze_panes=freeze_panes,
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/io/excel/_openpyxl.py", line 457, in write_cells
+#     for cell in cells:
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/io/formats/excel.py", line 778, in get_formatted_cells
+#     cell.val = self._format_value(cell.val)
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/io/formats/excel.py", line 527, in _format_value
+#     "Excel does not support datetimes with "
+# ValueError: Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel.
