@@ -84,54 +84,54 @@ def get_instance_details(session):
                             'Type': lb['Type']
                         })
 
-        # EFS Mounts
-        efs_client = session.client('efs')
-        file_systems = efs_client.describe_file_systems()['FileSystems']
-        for fs in file_systems:
-            mount_targets = efs_client.describe_mount_targets(FileSystemId=fs['FileSystemId'])['MountTargets']
-            for mt in mount_targets:
-                if any(sg['GroupId'] for sg in instance.security_groups if sg['GroupId'] == mt['SecurityGroups'][0]):
-                    instance_data['EFS Mounts'].append({
-                        'EFS ID': fs['FileSystemId'],
-                        'EFS Name': fs['Name'],
-                        'Mount Target ID': mt['MountTargetId']
-                    })
+    #     # EFS Mounts
+    #     efs_client = session.client('efs')
+    #     file_systems = efs_client.describe_file_systems()['FileSystems']
+    #     for fs in file_systems:
+    #         mount_targets = efs_client.describe_mount_targets(FileSystemId=fs['FileSystemId'])['MountTargets']
+    #         for mt in mount_targets:
+    #             if any(sg['GroupId'] for sg in instance.security_groups if sg['GroupId'] == mt['SecurityGroups'][0]):
+    #                 instance_data['EFS Mounts'].append({
+    #                     'EFS ID': fs['FileSystemId'],
+    #                     'EFS Name': fs['Name'],
+    #                     'Mount Target ID': mt['MountTargetId']
+    #                 })
 
-        # CPU Utilization from CloudWatch
-        end_time = datetime.datetime.utcnow()
-        start_time = end_time - datetime.timedelta(days=30)
-        cpu_stats = cloudwatch.get_metric_statistics(
-        Namespace='AWS/EC2',
-        MetricName='CPUUtilization',
-        Dimensions=[{'Name': 'InstanceId', 'Value': instance.id}],
-        StartTime=start_time,
-        EndTime=end_time,
-        Period=3600,
-        Statistics=['Average']
-    )
-        if cpu_stats['Datapoints']:
-            instance_data['Average CPU Utilization'] = cpu_stats['Datapoints'][0]['Average']
+    #     # CPU Utilization from CloudWatch
+    #     end_time = datetime.datetime.utcnow()
+    #     start_time = end_time - datetime.timedelta(days=30)
+    #     cpu_stats = cloudwatch.get_metric_statistics(
+    #     Namespace='AWS/EC2',
+    #     MetricName='CPUUtilization',
+    #     Dimensions=[{'Name': 'InstanceId', 'Value': instance.id}],
+    #     StartTime=start_time,
+    #     EndTime=end_time,
+    #     Period=3600,
+    #     Statistics=['Average']
+    # )
+    #     if cpu_stats['Datapoints']:
+    #         instance_data['Average CPU Utilization'] = cpu_stats['Datapoints'][0]['Average']
 
-        # Memory Utilization (This requires a custom CloudWatch metric, so it might not always be available)
-        try:
-            memory_stats = cloudwatch.get_metric_statistics(
-                Namespace='CustomNamespace',  # Adjust this based on your setup
-                MetricName='MemoryUtilization',
-                Dimensions=[{'Name': 'InstanceId', 'Value': instance.id}],
-                StartTime=instance.launch_time,
-                EndTime=pd.Timestamp.now(tz="UTC"),
-                Period=3600,
-                Statistics=['Average']
-            )
-            if memory_stats['Datapoints']:
-                instance_data['Average Memory Utilization'] = memory_stats['Datapoints'][0]['Average']
-        except:
-            instance_data['Average Memory Utilization'] = "N/A"
+    #     # Memory Utilization (This requires a custom CloudWatch metric, so it might not always be available)
+    #     try:
+    #         memory_stats = cloudwatch.get_metric_statistics(
+    #             Namespace='CustomNamespace',  # Adjust this based on your setup
+    #             MetricName='MemoryUtilization',
+    #             Dimensions=[{'Name': 'InstanceId', 'Value': instance.id}],
+    #             StartTime=instance.launch_time,
+    #             EndTime=pd.Timestamp.now(tz="UTC"),
+    #             Period=3600,
+    #             Statistics=['Average']
+    #         )
+    #         if memory_stats['Datapoints']:
+    #             instance_data['Average Memory Utilization'] = memory_stats['Datapoints'][0]['Average']
+    #     except:
+    #         instance_data['Average Memory Utilization'] = "N/A"
 
-        # Placeholder for Cost/Price
-        instance_data['Cost/Price'] = "Check AWS Pricing API or Cost Explorer"
+    #     # Placeholder for Cost/Price
+    #     instance_data['Cost/Price'] = "Check AWS Pricing API or Cost Explorer"
 
-        instances_data.append(instance_data)
+        # instances_data.append(instance_data)
 
     return instances_data
 
@@ -148,27 +148,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# [ec2-user@ip-10-140-241-119 ec2]$ python3 instance_report.py
-# Traceback (most recent call last):
-#   File "instance_report.py", line 150, in <module>
-#     main()
-#   File "instance_report.py", line 147, in main
-#     generate_report_with_pandas(data)
-#   File "instance_report.py", line 141, in generate_report_with_pandas
-#     df.to_excel(writer, sheet_name='Instances', index=False)
-#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/core/generic.py", line 2291, in to_excel
-#     storage_options=storage_options,
-#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/io/formats/excel.py", line 845, in write
-#     freeze_panes=freeze_panes,
-#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/io/excel/_openpyxl.py", line 457, in write_cells
-#     for cell in cells:
-#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/io/formats/excel.py", line 778, in get_formatted_cells
-#     cell.val = self._format_value(cell.val)
-#   File "/home/ec2-user/.local/lib/python3.7/site-packages/pandas/io/formats/excel.py", line 527, in _format_value
-#     "Excel does not support datetimes with "
-# ValueError: Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel.
-# [ec2-user@ip-10-140-241-119 ec2]$
 
 
 
