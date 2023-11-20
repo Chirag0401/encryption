@@ -1,7 +1,6 @@
 import boto3
 import os
 import pandas as pd
-import datetime
 
 def create_session():
     """Create a boto3 session using environment variables."""
@@ -12,10 +11,15 @@ def create_session():
         aws_session_token=os.environ.get('AWS_SESSION_TOKEN'),
     )
 
+def get_account_number(session):
+    """Get the AWS account number using STS client."""
+    sts_client = session.client('sts')
+    account_id = sts_client.get_caller_identity()["Account"]
+    return account_id
+
 def get_instance_details(session):
     ec2 = session.resource('ec2')
     ec2_client = session.client('ec2')
-    cloudwatch = session.client('cloudwatch')
 
     instances_data = []
 
@@ -38,10 +42,8 @@ def get_instance_details(session):
             'Volumes': [],
             'Target Groups': [],
             'Load Balancers': [],
-            'EFS Mounts': []
         }
 
-        # Security Groups and their rules
         for sg in instance.security_groups:
             sg_id = sg['GroupId']
             sg_details = ec2_client.describe_security_groups(GroupIds=[sg_id])['SecurityGroups'][0]
@@ -54,7 +56,6 @@ def get_instance_details(session):
                 'Outbound Rules': outbound_rules
             })
 
-        # Volumes
         for volume in instance.volumes.all():
             instance_data['Volumes'].append({
                 'Volume ID': volume.id,
@@ -63,7 +64,6 @@ def get_instance_details(session):
                 'Size': volume.size
             })
 
-        # Target Groups and Load Balancers
         elbv2_client = session.client('elbv2')
         target_groups = elbv2_client.describe_target_groups()
         for tg in target_groups['TargetGroups']:
@@ -74,7 +74,6 @@ def get_instance_details(session):
                         'Target Group Name': tg['TargetGroupName'],
                         'Target Group ARN': tg['TargetGroupArn']
                     })
-                    # Get associated load balancers
                     lb_arns = tg['LoadBalancerArns']
                     for lb_arn in lb_arns:
                         lb = elbv2_client.describe_load_balancers(LoadBalancerArns=[lb_arn])['LoadBalancers'][0]
@@ -84,70 +83,22 @@ def get_instance_details(session):
                             'Type': lb['Type']
                         })
 
-    #     # EFS Mounts
-    #     efs_client = session.client('efs')
-    #     file_systems = efs_client.describe_file_systems()['FileSystems']
-    #     for fs in file_systems:
-    #         mount_targets = efs_client.describe_mount_targets(FileSystemId=fs['FileSystemId'])['MountTargets']
-    #         for mt in mount_targets:
-    #             if any(sg['GroupId'] for sg in instance.security_groups if sg['GroupId'] == mt['SecurityGroups'][0]):
-    #                 instance_data['EFS Mounts'].append({
-    #                     'EFS ID': fs['FileSystemId'],
-    #                     'EFS Name': fs['Name'],
-    #                     'Mount Target ID': mt['MountTargetId']
-    #                 })
-
-    #     # CPU Utilization from CloudWatch
-    #     end_time = datetime.datetime.utcnow()
-    #     start_time = end_time - datetime.timedelta(days=30)
-    #     cpu_stats = cloudwatch.get_metric_statistics(
-    #     Namespace='AWS/EC2',
-    #     MetricName='CPUUtilization',
-    #     Dimensions=[{'Name': 'InstanceId', 'Value': instance.id}],
-    #     StartTime=start_time,
-    #     EndTime=end_time,
-    #     Period=3600,
-    #     Statistics=['Average']
-    # )
-    #     if cpu_stats['Datapoints']:
-    #         instance_data['Average CPU Utilization'] = cpu_stats['Datapoints'][0]['Average']
-
-    #     # Memory Utilization (This requires a custom CloudWatch metric, so it might not always be available)
-    #     try:
-    #         memory_stats = cloudwatch.get_metric_statistics(
-    #             Namespace='CustomNamespace',  # Adjust this based on your setup
-    #             MetricName='MemoryUtilization',
-    #             Dimensions=[{'Name': 'InstanceId', 'Value': instance.id}],
-    #             StartTime=instance.launch_time,
-    #             EndTime=pd.Timestamp.now(tz="UTC"),
-    #             Period=3600,
-    #             Statistics=['Average']
-    #         )
-    #         if memory_stats['Datapoints']:
-    #             instance_data['Average Memory Utilization'] = memory_stats['Datapoints'][0]['Average']
-    #     except:
-    #         instance_data['Average Memory Utilization'] = "N/A"
-
-    #     # Placeholder for Cost/Price
-    #     instance_data['Cost/Price'] = "Check AWS Pricing API or Cost Explorer"
-
-        # instances_data.append(instance_data)
+        instances_data.append(instance_data)
 
     return instances_data
 
-def generate_report_with_pandas(data):
+def generate_report_with_pandas(data, filename):
     df = pd.DataFrame(data)
-    with pd.ExcelWriter('report.xlsx') as writer:
+    with pd.ExcelWriter(filename) as writer:
         df.to_excel(writer, sheet_name='Instances', index=False)
-    print("Report generated as report.xlsx")
+    print(f"Report generated as {filename}")
 
 def main():
     session = create_session()
+    account_number = get_account_number(session)
     data = get_instance_details(session)
-    generate_report_with_pandas(data)
+    report_filename = f'report_{account_number}.xlsx'
+    generate_report_with_pandas(data, report_filename)
 
 if __name__ == "__main__":
     main()
-
-
-
