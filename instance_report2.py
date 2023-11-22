@@ -99,3 +99,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+#botocore.exceptions.ClientError: An error occurred (Throttling) when calling the DescribeTargetHealth operation (reached max retries: 4): Rate exceeded
