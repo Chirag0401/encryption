@@ -1,6 +1,8 @@
 import boto3
 import os
 import pandas as pd
+import time
+import botocore
 
 def create_session():
     """Create a boto3 session using environment variables."""
@@ -16,6 +18,18 @@ def get_account_number(session):
     sts_client = session.client('sts')
     account_id = sts_client.get_caller_identity()["Account"]
     return account_id
+
+def describe_target_health_with_backoff(client, **kwargs):
+    for attempt in range(5):  # max 5 attempts
+        try:
+            return client.describe_target_health(**kwargs)
+        except botocore.exceptions.ClientError as error:
+            if error.response['Error']['Code'] == 'Throttling' and attempt < 4:
+                wait_time = 2 ** attempt  # exponential back-off
+                print(f"Throttling AWS API calls. Retrying in {wait_time} seconds.")
+                time.sleep(wait_time)
+            else:
+                raise
 
 def get_instance_details(session):
     ec2 = session.resource('ec2')
@@ -47,7 +61,7 @@ def get_instance_details(session):
         elbv2_client = session.client('elbv2')
         target_groups = elbv2_client.describe_target_groups()
         for tg in target_groups['TargetGroups']:
-            health_descriptions = elbv2_client.describe_target_health(TargetGroupArn=tg['TargetGroupArn'])
+            health_descriptions = describe_target_health_with_backoff(elbv2_client, TargetGroupArn=tg['TargetGroupArn'])
             for desc in health_descriptions['TargetHealthDescriptions']:
                 if desc['Target']['Id'] == instance.id:
                     formatted_target_groups.append(f"Name: {tg['TargetGroupName']}, ARN: {tg['TargetGroupArn']}")
@@ -68,7 +82,7 @@ def get_instance_details(session):
             'Public IP Address': instance.public_ip_address,
             'Private IP Address': instance.private_ip_address,
             'Key Pair': instance.key_name,
-            'Launch Time': instance.launch_time,
+            # 'Launch Time': instance.launch_time,
             'AMI ID': instance.image_id,
             'Lifecycle': instance.instance_lifecycle,
             'Availability Zone': instance.placement['AvailabilityZone'],
@@ -99,6 +113,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-#botocore.exceptions.ClientError: An error occurred (Throttling) when calling the DescribeTargetHealth operation (reached max retries: 4): Rate exceeded
