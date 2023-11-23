@@ -39,8 +39,12 @@ def add_rules_to_security_group(sg_id, rules):
         try:
             ec2_client.authorize_security_group_ingress(GroupId=sg_id, IpPermissions=[rule])
             print(f"Rule added to {sg_id}.")
-        except Exception as e:
-            print(f"Failed to add rule to {sg_id}: {e}")
+        except ec2_client.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == 'InvalidPermission.Duplicate':
+                print(f"Duplicate rule, skipped: {rule}")
+            else:
+                print(f"Failed to add rule to {sg_id}: {e}")
+
 
 def user_confirmation(prompt):
     return input(prompt).lower() in ['yes', 'y']
