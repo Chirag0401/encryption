@@ -60,3 +60,11 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+# [ec2-user@ip-10-140-241-119 sg-combine]$ python3 sg-combine.py
+# Enter the security group IDs to combine, separated by commas: sg-00d655c03893e4563,sg-0cc133920bb6d45cb
+# Enter the existing security group ID to add the rules: sg-0b70ab9c598da470c
+# Rule added to sg-0b70ab9c598da470c.
+# Failed to add rule to sg-0b70ab9c598da470c: An error occurred (InvalidPermission.Duplicate) when calling the AuthorizeSecurityGroupIngress operation: the specified rule "peer: 104.115.39.0/24, TCP, from port: 443, to port: 443, ALLOW" already exists
+
