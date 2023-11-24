@@ -1,299 +1,230 @@
 import boto3
-import time
-import datetime
-import json
+import os
+from datetime import datetime
+from collections import defaultdict
+import botocore
+import logging
 
-def create_session(region, access_key, secret_access_key, session_token):
-    session = boto3.Session(
-        region_name=region,
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_access_key,
-        aws_session_token=session_token,
+VOLUME_DETAILS_LIST = []
+PENDING_SNAPSHOTS = []
+FAILED_SNAPSHOTS = []
+EXCLUDED_INSTANCES = []  # Add your instance IDs here
+
+logging.basicConfig(filename='script_logs.log', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger()
+
+MAX_RETRIES = 5
+
+def create_session():
+    return boto3.Session(
+        region_name=os.environ.get('AWS_DEFAULT_REGION'),
+        aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+        aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
+        aws_session_token=os.environ.get('AWS_SESSION_TOKEN'),
     )
-    return session
+
+def robust_waiter(waiter, **kwargs):
+    try:
+        waiter.wait(
+            **kwargs,
+            WaiterConfig={
+                'Delay': 120,
+                'MaxAttempts': 60
+            }
+        )
+    except botocore.exceptions.WaiterError as e:
+        logger.error(f"Waiter failed for parameters: {kwargs}. Error: {str(e)}")
+        raise
+
+def get_instance_name(session, instance_id):
+    ec2_client = session.client("ec2")
+    response = ec2_client.describe_instances(InstanceIds=[instance_id])
+    for tag in response['Reservations'][0]['Instances'][0].get('Tags', []):
+        if tag['Key'] == 'Name':
+            return tag['Value']
+    return None
+
+def get_kms_key_arn(session, alias_name='alias/aws/ebs'):
+    kms_client = session.client('kms')
+    try:
+        response = kms_client.describe_key(KeyId=alias_name)
+        return response['KeyMetadata']['Arn']
+    except kms_client.exceptions.NotFoundException:
+        logger.error(f"KMS key with alias {alias_name} not found.")
+        return None
 
 def get_volume_info(session):
     ec2_client = session.client("ec2")
     response = ec2_client.describe_volumes()
-    volumes = response['Volumes']
-    volume_info = []
-    
+    return response['Volumes']
+
+def create_snapshot(session, volume_id):
+    ec2_client = session.client("ec2")
+    start_time = datetime.now()
+    response = ec2_client.create_snapshot(VolumeId=volume_id)
+    snapshot_id = response['SnapshotId']
+    waiter = ec2_client.get_waiter('snapshot_completed')
+    robust_waiter(waiter, SnapshotIds=[snapshot_id])
+    elapsed_time = datetime.now() - start_time
+    logger.info(f"Snapshot {snapshot_id} created in {elapsed_time}")
+    return snapshot_id
+
+def create_encrypted_volume(session, snapshot_id, availability_zone, size, volume_type, kms_key):
+    ec2_client = session.client("ec2")
+    start_time = datetime.now()
+    response = ec2_client.create_volume(
+        SnapshotId=snapshot_id,
+        AvailabilityZone=availability_zone,
+        Size=size,
+        VolumeType=volume_type,
+        Encrypted=True,
+        KmsKeyId=kms_key,
+    )
+    volume_id = response['VolumeId']
+    waiter = ec2_client.get_waiter('volume_available')
+    robust_waiter(waiter, VolumeIds=[volume_id])
+    elapsed_time = datetime.now() - start_time
+    logger.info(f"Encrypted volume {volume_id} created in {elapsed_time}")
+    return volume_id
+
+def attach_encrypted_volume(session, encrypted_volume_id, instance_id, device_name):
+    ec2_client = session.client("ec2")
+    ec2_client.attach_volume(
+        VolumeId=encrypted_volume_id,
+        InstanceId=instance_id,
+        Device=device_name
+    )
+
+def detach_volume(session, volume_id):
+    ec2_client = session.client("ec2")
+    start_time = datetime.now()
+    ec2_client.detach_volume(VolumeId=volume_id)
+    waiter = ec2_client.get_waiter('volume_available')
+    robust_waiter(waiter, VolumeIds=[volume_id])
+    elapsed_time = datetime.now() - start_time
+    logger.info(f"Volume {volume_id} detached in {elapsed_time}")
+
+def stop_instance(session, instance_id):
+    ec2_client = session.client("ec2")
+    start_time = datetime.now()
+    ec2_client.stop_instances(InstanceIds=[instance_id])
+    waiter = ec2_client.get_waiter('instance_stopped')
+    robust_waiter(waiter, InstanceIds=[instance_id])
+    elapsed_time = datetime.now() - start_time
+    logger.info(f"Instance {instance_id} stopped in {elapsed_time}")
+
+def start_instance(session, instance_id):
+    ec2_client = session.client("ec2")
+    start_time = datetime.now()
+    ec2_client.start_instances(InstanceIds=[instance_id])
+    waiter = ec2_client.get_waiter('instance_running')
+    robust_waiter(waiter, InstanceIds=[instance_id])
+    elapsed_time = datetime.now() - start_time
+    logger.info(f"Instance {instance_id} started in {elapsed_time}")
+
+def log_volume_details(details):
+    with open('volume_changes.csv', 'a') as file:
+        file.write(f"{details['old_volume_id']},{details['new_volume_id']},{details['instance_id']},{details['instance_name']},{details['device_name']},{details['disk_size']},{details['snapshot_id']},{details['availability_zone']}\n")
+
+def process_volumes_for_instance(session, volumes, kms_key):
+    instance_id = volumes[0]['Attachments'][0]['InstanceId']
+    stop_instance(session, instance_id)
+
     for volume in volumes:
         volume_id = volume['VolumeId']
-        volume_name = None
-        instance_id = None
-        instance_name = None
-        encrypted = volume['Encrypted']
-        is_root = False
-        device_name = None
-        volume_size = volume['Size']
-        availability_zone = volume['AvailabilityZone']
-        
-        if 'Attachments' in volume and len(volume['Attachments']) > 0:
-            attachments = volume['Attachments']
-            for attachment in attachments:
-                instance_id = attachment['InstanceId']
-                instance_name = get_instance_name(ec2_client, instance_id)
-                if 'Device' in attachment and attachment['Device'] == '/dev/xvda':
-                    volume_name = "Root Volume"
-                    is_root = True
-                    device_name = attachment['Device']
-                else:
-                    device_name = attachment['Device']
-        volume_info.append({
-            'Volume ID': volume_id,
-            'Volume Name': volume_name,
-            'Instance ID': instance_id,
-            'Instance Name': instance_name,
-            'Encrypted': encrypted,
-            'Is Root': is_root,
-            'Device Name': device_name,
-            'Volume Size': volume_size,
-            'Availability Zone': availability_zone
-        })
-        if 'Tags' in volume:
-            for tag in volume['Tags']:
-                if tag['Key'] == 'Name':
-                    volume_name = tag['Value']
-                    break
+        snapshot_id = create_snapshot(session, volume_id)
+        encrypted_volume_id = create_encrypted_volume(session, snapshot_id, volume['AvailabilityZone'], volume['Size'], volume['VolumeType'], kms_key)
+        detach_volume(session, volume_id)
+        attach_encrypted_volume(session, encrypted_volume_id, instance_id, volume['Attachments'][0]['Device'])
 
-        if not is_root:
-            volume_info.append({
-                'Volume ID': volume_id,
-                'Volume Name': volume_name,
-                'Instance ID': instance_id,
-                'Instance Name': instance_name,
-                'Encrypted': encrypted,
-                'Is Root': is_root,
-                'Device Name': device_name,
-                'Volume Size': volume_size,
-                'Availability Zone': availability_zone
-            })
-    print(volume_info)
-    return volume_info
-
-def get_instance_name(ec2_client, instance_id):
-    response = ec2_client.describe_instances(InstanceIds=[instance_id])
-    instances = response['Reservations'][0]['Instances']
-
-    for instance in instances:
-        if 'Tags' in instance:
-            for tag in instance['Tags']:
-                if tag['Key'] == 'Name':
-                    return tag['Value']
-
-    return None
-
-def create_snapshots(volume_info, session):
-    ec2_client = session.client("ec2")
-
-    snapshot_details = []
-    retention_days = 90
-
-    for volume in volume_info:
-        if not volume['Encrypted']:
-            volume_id = volume['Volume ID']
-            instance_id = volume['Instance ID']
-            instance_name = volume['Instance Name']
-            root_volume = volume['Device Name']
-            disk_size = volume['Volume Size']
-            availability_zone = volume['Availability Zone']
-            response = ec2_client.create_snapshot(VolumeId=volume_id, Description='Testing snapshot using python script')
-            snapshot_id = response['SnapshotId']
-            snapshot_name = f"{instance_name}-snapshot" if instance_name else "Unnamed-snapshot"
-
-            # Set retention period
-            retention_date = datetime.datetime.now() + datetime.timedelta(days=retention_days)
-            ec2_client.create_tags(
-                Resources=[snapshot_id],
-                Tags=[
-                    {'Key': 'RetentionDate', 'Value': retention_date.strftime('%Y-%m-%d')},
-                    {'Key': 'Name', 'Value': snapshot_name}
-                ]
-            )
-
-            snapshot_details.append({
-                'Snapshot ID': snapshot_id,
-                'Volume ID': volume_id,
-                'Instance ID': instance_id,
-                'Instance Name': instance_name,
-                'Snapshot Name': snapshot_name,
-                'Root Volume': root_volume,
-                'Disk Size': disk_size,
-                'Availability Zone': availability_zone,
-                'Description': 'Testing snapshot using python script'
-            })
-
-            time.sleep(10)
-
-    with open('snapshot_details.json', 'w') as file:
-        json.dump(snapshot_details, file, indent=4)
-
-def create_volumes_from_snapshots(kms_key_arn, session):
-    ec2_client = session.client('ec2')
-    with open('snapshot_details.json', 'r') as file:
-        snapshot_details = json.load(file)
-
-    snapshot_ids = []
-    volume_details = []
-    for detail in snapshot_details:
-        snapshot_id = detail['Snapshot ID']
-        snapshot_name = detail['Snapshot Name']
-        volume_id = detail['Volume ID']
-        instance_id = detail['Instance ID']
-        instance_name = detail['Instance Name']
-        root_volume = detail['Root Volume']
-        disk_size = detail['Disk Size']
-        snapshot_ids.append(snapshot_id)
-        volume_details.append({
-            'snapshot_id': snapshot_id,
-            'snapshot_name': snapshot_name,
-            'volume_id': volume_id,
+        instance_name = get_instance_name(session, instance_id)
+        details = {
+            'old_volume_id': volume_id,
+            'new_volume_id': encrypted_volume_id,
             'instance_id': instance_id,
             'instance_name': instance_name,
-            'root_volume': root_volume,
-            'disk_size': disk_size
-        })
-        print(volume_details)
+            'device_name': volume['Attachments'][0]['Device'],
+            'disk_size': volume['Size'],
+            'snapshot_id': snapshot_id,
+            'availability_zone': volume['AvailabilityZone']
+        }
+        log_volume_details(details)
 
-    for volume_detail in volume_details:
-        snapshot_id = volume_detail['snapshot_id']
-        root_volume = volume_detail['root_volume']
-        disk_size = volume_detail['disk_size']
-        instance_name = volume_detail['instance_name']
-        instance_id = volume_detail['instance_id']
-        snapshot_state = ec2_client.describe_snapshots(SnapshotIds=[snapshot_id])['Snapshots'][0]['State']
-        if snapshot_state != 'completed':
-            print(f"Waiting for snapshot {snapshot_id} to become ready")
-            while snapshot_state != 'completed':
-                time.sleep(10)
-                snapshot_state = ec2_client.describe_snapshots(SnapshotIds=[snapshot_id])['Snapshots'][0]['State']
-        old_volume_az = ec2_client.describe_volumes(VolumeIds=[volume_detail['volume_id']])['Volumes'][0]['AvailabilityZone']
-        response = ec2_client.create_volume(
-            SnapshotId=snapshot_id,
-            AvailabilityZone=old_volume_az,
-            Encrypted=True,
-            KmsKeyId=kms_key_arn
-        )
-        volume_id = response['VolumeId']
-        print(f"Created encrypted volume with ID: {volume_id}")
-        volume_detail['new_volume_id'] = volume_id
-        volume_detail['availability_zone'] = old_volume_az
-    output_file = 'volume_details.txt'
-    with open(output_file, 'w') as file:
-        for volume_detail in volume_details:
-            file.write("Snapshot ID: " + volume_detail['snapshot_id'] + ", ")
-            file.write("Snapshot Name: " + volume_detail['snapshot_name'] + ", ")
-            file.write("Old Volume ID: " + volume_detail['volume_id'] + ", ")
-            file.write("New Volume ID: " + volume_detail['new_volume_id'] + ", ")
-            file.write("Instance ID: " + volume_detail['instance_id'] + ", ")
-            file.write("Instance Name: " + volume_detail['instance_name'] + ", ")
-            file.write("Root Volume: " + volume_detail['root_volume'] + ", ")
-            file.write("Disk Size: " + str(volume_detail['disk_size']) + ", ")
-            file.write("Availability Zone: " + volume_detail['availability_zone'] + "\n")
+    start_instance(session, instance_id)
 
-    print("Output stored in", output_file)
+def process_pending_snapshots(session):
+    ec2_client = session.client("ec2")
+    retry_count = 0
 
-def detach_volumes(session):
-    ec2_client = session.client('ec2')
-    with open('volume_details.txt', 'r') as volume_file:
-        volume_details = volume_file.readlines()
-    volume_ids = []
-    for detail in volume_details:
-        volume_id = detail.split(',')[2].strip().split(': ')[1]
-        volume_ids.append(volume_id)
-    for volume_id in volume_ids:
-        volume_details = ec2_client.describe_volumes(VolumeIds=[volume_id])['Volumes'][0]
-        device_name = volume_details['Attachments'][0]['Device']
-        instance_id = volume_details['Attachments'][0]['InstanceId']
-        
-        if device_name == volume_details['Attachments'][0]['Device']:
-            # Stop instance if the volume is the root volume
-            ec2_client.stop_instances(InstanceIds=[instance_id])
-            while True:
-                time.sleep(10)
-                instance_state = ec2_client.describe_instances(InstanceIds=[instance_id])['Reservations'][0]['Instances'][0]['State']['Name']
-                if instance_state == 'stopped':
-                    break
-        
-        ec2_client.detach_volume(VolumeId=volume_id)
-        while True:
-            time.sleep(10)
-            volume_state = ec2_client.describe_volumes(VolumeIds=[volume_id])['Volumes'][0]['State']
-            if volume_state == 'available':
-                break
+    while PENDING_SNAPSHOTS and retry_count < MAX_RETRIES:
+        completed_snapshots = []
 
-        print(f"Detached volume {volume_id} from instance {instance_id} with device {device_name}")
+        for pending_snapshot in PENDING_SNAPSHOTS:
+            volume_id = pending_snapshot['volume_id']
+            response = ec2_client.describe_volumes(VolumeIds=[volume_id])
+            volume_status = response['Volumes'][0]['State']
 
-def attach_encrypted_volume(session):
-    ec2_client = session.client('ec2')
-    with open('volume_details.txt', 'r') as volume_file:
-        volume_details = volume_file.readlines()
-    with open('snapshot_details.txt', 'r') as snapshot_file:
-        snapshot_details = snapshot_file.readlines()
-    for volume_detail in volume_details:
-        volume_detail = volume_detail.strip().split(',')
-        
-        old_volume_id = volume_detail[2].strip().split(': ')[1]
-        new_volume_id = volume_detail[3].strip().split(': ')[1]
-        instance_id = volume_detail[4].strip().split(': ')[1]
-        old_device_name = volume_detail[6].strip().split(': ')[1]
-        root_volume = volume_detail[8].strip().split(': ')[1]  # Access 'Root Volume' value
-        
-        while True:
-            volume_state = ec2_client.describe_volumes(VolumeIds=[new_volume_id])['Volumes'][0]['State']
-            if volume_state == 'available':
-                break
+            if volume_status == 'completed':
+                completed_snapshots.append(pending_snapshot)
+                snapshot_id = create_snapshot(session, volume_id)
+                encrypted_volume_id = create_encrypted_volume(session, snapshot_id, pending_snapshot['availability_zone'], pending_snapshot['size'], pending_snapshot['volume_type'], pending_snapshot['kms_key'])
+                detach_volume(session, volume_id)
+                attach_encrypted_volume(session, encrypted_volume_id, pending_snapshot['instance_id'], pending_snapshot['device_name'])
             else:
-                print(f"Waiting for volume {new_volume_id} to become available...")
-                time.sleep(30)
+                FAILED_SNAPSHOTS.append(pending_snapshot)
 
-        ec2_client.attach_volume(VolumeId=new_volume_id, InstanceId=instance_id, Device=old_device_name)
+        for completed_snapshot in completed_snapshots:
+            PENDING_SNAPSHOTS.remove(completed_snapshot)
 
-        if old_device_name == root_volume:  # Compare with the 'root_volume' variable
-            # Start instance if the volume is the root volume
-            ec2_client.start_instances(InstanceIds=[instance_id])
-            while True:
-                time.sleep(10)
-                instance_state = ec2_client.describe_instances(InstanceIds=[instance_id])['Reservations'][0]['Instances'][0]['State']['Name']
-                if instance_state == 'running':
-                    break
+        if PENDING_SNAPSHOTS:
+            retry_count += 1
 
-        print(f"Attached encrypted volume {new_volume_id} to instance {instance_id} with device {old_device_name}")
-
-# def get_kms_key_arn():
-#     kms_client = boto3.client('kms')
-    
-#     response = kms_client.list_aliases()
-    
-#     for alias in response['Aliases']:
-#         if alias['AliasName'] == 'alias/aws/ebs':
-#             key_id = alias['TargetKeyId']
-#             key_response = kms_client.describe_key(KeyId=key_id)
-#             key_arn = key_response['KeyMetadata']['Arn']
-#             return key_arn
-    
-#     return None  # Return None if the alias is not found
-
-# # Example usage
-# kms_key_arn = get_kms_key_arn()
-# if kms_key_arn:
-#     print("KMS Key ARN:", kms_key_arn)
-# else:
-#     print("KMS key alias 'aws/ebs' not found.")
+    if PENDING_SNAPSHOTS:
+        for failed in PENDING_SNAPSHOTS:
+            logger.error(f"Failed snapshot details: {failed}")
 
 def main():
-    region = 'eu-west-1'
-    access_key = ''
-    secret_access_key = ''
-    session_token = ''
-    kms_key_arn = 'arn:aws:kms:eu-west-1:198370751513:key/d1d3158d-940a-4e76-b21b-ec5d595723e9'
-    session = create_session(region, access_key, secret_access_key, session_token)
+    start_time = datetime.now()
+
+    # Only write the header if the file doesn't exist
+    if not os.path.exists('volume_changes.csv'):
+        with open('volume_changes.csv', 'w') as file:
+            file.write("Old Volume ID,New Volume ID,Instance ID,Instance Name,Device Name,Disk Size,Snapshot ID,Availability Zone\n")
+
+    session = create_session()
+    kms_key = get_kms_key_arn(session)
+    if not kms_key:
+        logger.error("Error: Could not retrieve the KMS key ARN. Exiting.")
+        return
+
     volume_info = get_volume_info(session)
-    create_snapshots(volume_info, session)
-    create_volumes_from_snapshots(kms_key_arn, session)
-    detach_volumes(session)
-    attach_encrypted_volume(session)
+    
+    zone_to_instance_to_volumes_map = defaultdict(lambda: defaultdict(list))
+    encountered_zones = set()
+    
+    for volume in volume_info:
+        if volume['State'] == 'in-use' and not volume['Encrypted']:
+            instance_id = volume['Attachments'][0]['InstanceId']
+            availability_zone = volume['AvailabilityZone']
+            encountered_zones.add(availability_zone)
+            zone_to_instance_to_volumes_map[availability_zone][instance_id].append(volume)
+
+    zones_order = list(encountered_zones)
+
+    for zone in zones_order:
+        instance_to_volumes_map = zone_to_instance_to_volumes_map[zone]
+
+        for instance_id, volumes in instance_to_volumes_map.items():
+            if instance_id in EXCLUDED_INSTANCES:
+                logger.info(f"Skipping encryption process for excluded instance: {instance_id}")
+                continue
+            process_volumes_for_instance(session, volumes, kms_key)
+
+    if PENDING_SNAPSHOTS:
+        process_pending_snapshots(session)
+
+    elapsed_time = datetime.now() - start_time
+    logger.info(f"Script completed in {elapsed_time}")
 
 if __name__ == '__main__':
     main()
