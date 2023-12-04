@@ -214,3 +214,628 @@ curl -k -X POST -H "Content-Type: application/json" --data @$data_file "$zabbix_
 # if test -f /etc/zabbix/zabbix_agentd.conf; then AgentFile=/etc/zabbix/zabbix_agentd.conf; else AgentFile=/etc/zabbix/zabbix_agent2.conf; fi
 # vm=$(grep ^Hostname= $AgentFile | awk -F= '{print $2}')
 # version=$(echo $vm | cut -d "." -f2)
+
+
+# "widgets": [
+#                         {
+#                             "widgetid": "1038006",
+#                             "type": "tophosts",
+#                             "name": "WPT Hosts-CORE",
+#                             "x": "0",
+#                             "y": "0",
+#                             "width": "24",
+#                             "height": "6",
+#                             "view_mode": "0",
+#                             "fields": [
+#                                 {
+#                                     "type": "1",
+#                                     "name": "tags.tag.0",
+#                                     "value": "project"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "tags.operator.0",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "tags.value.0",
+#                                     "value": "wpt"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "tags.tag.3",
+#                                     "value": "NetworkGroup"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "tags.operator.3",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "tags.value.3",
+#                                     "value": "CORE"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "tags.operator.1",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.name.0",
+#                                     "value": "Name"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.data.0",
+#                                     "value": "2"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.aggregate_function.0",
+#                                     "value": "0"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.base_color.0",
+#                                     "value": ""
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.name.1",
+#                                     "value": "CPU"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.data.1",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.item.1",
+#                                     "value": "CPU utilization"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.timeshift.1",
+#                                     "value": ""
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.aggregate_function.1",
+#                                     "value": "0"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.min.1",
+#                                     "value": "0"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.max.1",
+#                                     "value": "100"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.display.1",
+#                                     "value": "3"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.history.1",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.base_color.1",
+#                                     "value": "80FF00"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.1.0",
+#                                     "value": "FFFF00"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.1.0",
+#                                     "value": "50"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.1.1",
+#                                     "value": "FF8000"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.1.1",
+#                                     "value": "80"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.1.2",
+#                                     "value": "FF0000"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.1.2",
+#                                     "value": "90"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.name.2",
+#                                     "value": "Memory"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.data.2",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.item.2",
+#                                     "value": "Memory utilization"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.timeshift.2",
+#                                     "value": ""
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.aggregate_function.2",
+#                                     "value": "0"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.min.2",
+#                                     "value": "0"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.max.2",
+#                                     "value": "100"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.display.2",
+#                                     "value": "2"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.history.2",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.base_color.2",
+#                                     "value": "00FF00"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.2.0",
+#                                     "value": "00FF00"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.2.0",
+#                                     "value": "50"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.2.1",
+#                                     "value": "FFBF00"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.2.1",
+#                                     "value": "80"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.2.2",
+#                                     "value": "FF4000"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "tags.tag.2",
+#                                     "value": "region"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.name.3",
+#                                     "value": "Disk( / )"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.data.3",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.item.3",
+#                                     "value": "/: Space utilization"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.timeshift.3",
+#                                     "value": ""
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.aggregate_function.3",
+#                                     "value": "0"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.min.3",
+#                                     "value": "0"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.max.3",
+#                                     "value": "100"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "tags.operator.2",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.history.3",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "tags.value.2",
+#                                     "value": "eu-west-1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.3.0",
+#                                     "value": "80"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.name.4",
+#                                     "value": "Disk( /u02 )"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.data.4",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.item.4",
+#                                     "value": "/u02: Space utilization"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.timeshift.4",
+#                                     "value": ""
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.aggregate_function.4",
+#                                     "value": "0"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.min.4",
+#                                     "value": "0"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.max.4",
+#                                     "value": "100"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.display.4",
+#                                     "value": "2"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.history.4",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.base_color.4",
+#                                     "value": ""
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.4.0",
+#                                     "value": "FFFF00"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.4.0",
+#                                     "value": "80"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.4.1",
+#                                     "value": "FFBF00"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.4.1",
+#                                     "value": "90"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.4.2",
+#                                     "value": "FF465C"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.4.2",
+#                                     "value": "95"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.data.5",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.timeshift.5",
+#                                     "value": ""
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.aggregate_function.5",
+#                                     "value": "0"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.display.5",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.history.5",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.base_color.5",
+#                                     "value": ""
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.5.0",
+#                                     "value": "FF465C"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.5.0",
+#                                     "value": "0"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.data.6",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.timeshift.6",
+#                                     "value": ""
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.aggregate_function.6",
+#                                     "value": "0"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.display.6",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.history.6",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.base_color.6",
+#                                     "value": ""
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.7.0",
+#                                     "value": "FF465C"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.7.0",
+#                                     "value": "0"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "column",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "count",
+#                                     "value": "100"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.3.3",
+#                                     "value": "E64A19"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.3.3",
+#                                     "value": "95"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.2.2",
+#                                     "value": "90"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.display.3",
+#                                     "value": "2"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.base_color.3",
+#                                     "value": "00FF00"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.3.0",
+#                                     "value": "FFEE58"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.3.1",
+#                                     "value": "FFBF00"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.3.1",
+#                                     "value": "85"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.3.2",
+#                                     "value": "FF7043"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.3.2",
+#                                     "value": "90"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.7.1",
+#                                     "value": "80FF00"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.7.1",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.name.7",
+#                                     "value": "Agent"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.data.7",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.item.7",
+#                                     "value": "Zabbix agent availability"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.item.5",
+#                                     "value": "Runtime: JVM uptime"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.name.6",
+#                                     "value": "Service Status"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.timeshift.7",
+#                                     "value": ""
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.aggregate_function.7",
+#                                     "value": "0"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.display.7",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "0",
+#                                     "name": "columns.history.7",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.base_color.7",
+#                                     "value": ""
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.name.5",
+#                                     "value": "JVM Uptime(H:MM)"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.5.1",
+#                                     "value": "BFFF00"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.6.0",
+#                                     "value": "FF465C"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.6.0",
+#                                     "value": "0"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.6.1",
+#                                     "value": "00FF00"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.6.1",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "tags.tag.1",
+#                                     "value": "env"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "tags.value.1",
+#                                     "value": "ppe"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.color.5.2",
+#                                     "value": "BFFF00"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.5.2",
+#                                     "value": "1"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columnsthresholds.threshold.5.1",
+#                                     "value": "0.01"
+#                                 },
+#                                 {
+#                                     "type": "1",
+#                                     "name": "columns.item.6",
+#                                     "value": "Process Check"
+#                                 }
+#                             ]
+#                         },
