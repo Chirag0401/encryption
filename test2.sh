@@ -205,3 +205,6 @@ curl -k -X POST -H "Content-Type: application/json" --data @$data_file "$zabbix_
 
 
 
+# if test -f /etc/zabbix/zabbix_agentd.conf; then AgentFile=/etc/zabbix/zabbix_agentd.conf; else AgentFile=/etc/zabbix/zabbix_agent2.conf; fi
+# vm=$(grep ^Hostname= $AgentFile | awk -F= '{print $2}')
+# version=$(echo $vm | cut -d "." -f2)
