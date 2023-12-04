@@ -1,12 +1,68 @@
 #!/bin/bash
+
 auth="d6165047b19c9421729ea50b34a389f676338173d50960aa829cd6db7899a07c"
 zbx_host="operations.ops.ped.local"
 zabbix_url="https://${zbx_host}/api_jsonrpc.php"
-Dash_name="WPTT"
 existing_dash=$(curl -k -X POST -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "dashboard.get", "params": { "output": ["name", "dashboardid"]},"id": 2, "auth": "'$auth'"}' "$zabbix_url")
 data_file="/tmp/zabbix_dash.json"
 Get_Dash_CurrentNRequested_Sharing() { :; }
 generate_dark_color() { printf "%02x%02x%02x\n" $((RANDOM%128+127)) $((RANDOM%128+127)) $((RANDOM%128+127)); }
+
+# Retrieve the vm value
+vm=$(some_command_to_retrieve_vm_value)  # Replace with actual command to get vm value
+
+# Conditional settings based on vm value
+if [[ $vm = *"ppe"* ]] && [[ $vm != *"ppe.wpt"* ]]; then
+    ENV="ppe"
+    Dash_name="BCS Sales PPE"
+    host_group="ppe.bcs-Servers"
+    Dash_Sharing_Group=("p-ped-zabbix-nprod-ops" "p-ped-zabbix-nprod-ops-readonly")
+    cluster="cluster.msk-ppe"
+elif [[ $vm = *"ppe.wpt"* ]]; then
+    ENV="ppe"
+    Dash_name="WPT PPE"
+    host_group="ppe.wpt-Servers"
+    Dash_Sharing_Group=("p-ped-zabbix-nprod-admins")
+elif [[ $vm = *"sit"* ]]; then
+    ENV="sit"
+    Dash_name="BCS Sales SIT"
+    host_group="sit.bcs-Servers"
+    Dash_Sharing_Group=("p-ped-zabbix-nprod-ops" "p-ped-zabbix-nprod-ops-readonly")
+    cluster="cluster.msk-sit"
+elif [[ $vm = *"ped"* ]]; then
+    ENV="ppe"
+    Dash_name="PED PPE"
+    host_group="ops.ped-servers"
+    Dash_Sharing_Group=("p-ped-zabbix-nprod-admins")
+elif [[ $vm = *"patch.bcs"* ]]; then
+    ENV="patching"
+    Dash_name="BCS Sales Patching"
+    host_group="patch.bcs-Servers"
+    Dash_Sharing_Group=("p-ped-zabbix-nprod-ops" "p-ped-zabbix-nprod-ops-readonly")
+elif [[ $vm = *"ppe.shp"* ]]; then
+    ENV="ppe"
+    Dash_name="Shoppify PPE"
+    host_group="ppe.shp-Servers"
+    Dash_Sharing_Group=("p-ped-zabbix-nprod-admins")
+elif [[ $vm = *"muat.wpt"* ]]; then
+    ENV="muat"
+    Dash_name="WPT MUAT"
+    host_group="muat.wpt-Servers"
+    Dash_Sharing_Group=("p-ped-zabbix-prod-ops" "p-ped-zabbix-prod-ops-readonly" "p-ped-zabbix-prod-admins")
+elif [[ $vm = *"prod.ops"* ]]; then
+    ENV="prod"
+    Dash_name="PED PROD"
+    host_group="prod.ops-Servers"
+    Dash_Sharing_Group=("p-ped-zabbix-prod-ops" "p-ped-zabbix-prod-ops-readonly" "p-ped-zabbix-prod-admins")
+elif [[ $vm = *"prod.bcs"* ]]; then
+    ENV="prod"
+    Dash_name="BCS Sales PROD"
+    host_group="prod.bcs-Servers"
+    cluster="cluster.msk-prod"
+    Dash_Sharing_Group=("p-ped-zabbix-prod-ops" "p-ped-zabbix-prod-ops-readonly" "p-ped-zabbix-prod-admins")
+fi
+
+# ... Rest of your existing script follows here ...
 
 case ${existing_dash} in
   *"${Dash_name}"*)
