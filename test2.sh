@@ -8,8 +8,16 @@ data_file="/tmp/zabbix_dash.json"
 Get_Dash_CurrentNRequested_Sharing() { :; }
 generate_dark_color() { printf "%02x%02x%02x\n" $((RANDOM%128+127)) $((RANDOM%128+127)) $((RANDOM%128+127)); }
 
-# Retrieve the vm value
-vm=$(some_command_to_retrieve_vm_value)  # Replace with actual command to get vm value
+# Determine which agent file to use
+if test -f /etc/zabbix/zabbix_agentd.conf; then 
+    AgentFile=/etc/zabbix/zabbix_agentd.conf
+else 
+    AgentFile=/etc/zabbix/zabbix_agent2.conf
+fi
+
+# Retrieve the vm and version value
+vm=$(grep ^Hostname= $AgentFile | awk -F= '{print $2}')
+version=$(echo $vm | cut -d "." -f2)
 
 # Conditional settings based on vm value
 if [[ $vm = *"ppe"* ]] && [[ $vm != *"ppe.wpt"* ]]; then
@@ -61,8 +69,6 @@ elif [[ $vm = *"prod.bcs"* ]]; then
     cluster="cluster.msk-prod"
     Dash_Sharing_Group=("p-ped-zabbix-prod-ops" "p-ped-zabbix-prod-ops-readonly" "p-ped-zabbix-prod-admins")
 fi
-
-# ... Rest of your existing script follows here ...
 
 case ${existing_dash} in
   *"${Dash_name}"*)
