@@ -170,7 +170,7 @@ def get_vpc_info(session):
     account_id = session.client("sts").get_caller_identity()["Account"]
     filename = f"vpc_info_{account_id}.xlsx"
 
-    with pd.ExcelWriter(filename) as writer:
+    with pd.ExcelWriter(filename, engine='openpyxl') as writer:
         vpc_df = pd.DataFrame(vpc_info)
         vpc_df.to_excel(writer, sheet_name="VPC", index=False)
         subnet_table.to_excel(writer, sheet_name="Subnets", index=False)
@@ -178,15 +178,8 @@ def get_vpc_info(session):
         nat_table.to_excel(writer, sheet_name="NATs", index=False)
 
         # Create a new sheet for routes
-        route_sheet = writer.book.add_worksheet("Routes")
-        route_sheet.write(0, 0, "Route Table Name")
-        route_sheet.write(0, 1, "Route Table ID")
-        route_sheet.write(0, 2, "Subnet ID")
-        route_sheet.write(0, 3, "VPC ID")
-        route_sheet.write(0, 4, "Main")
-        route_sheet.write(0, 5, "Destination CIDR")
-        route_sheet.write(0, 6, "Target")
-        route_sheet.write(0, 7, "State")
+        route_sheet = writer.book.create_sheet("Routes")
+        route_sheet.append(["Route Table Name", "Route Table ID", "Subnet ID", "VPC ID", "Main", "Destination CIDR", "Target", "State"])
 
         row = 1
         for route in route_info:
@@ -202,14 +195,7 @@ def get_vpc_info(session):
                 target = r["Target"]
                 state = r["State"]
 
-                route_sheet.write(row, 0, route_table_name)
-                route_sheet.write(row, 1, route_table_id)
-                route_sheet.write(row, 2, subnet_id)
-                route_sheet.write(row, 3, vpc_id)
-                route_sheet.write(row, 4, main)
-                route_sheet.write(row, 5, destination_cidr)
-                route_sheet.write(row, 6, target)
-                route_sheet.write(row, 7, state)
+                route_sheet.append([route_table_name, route_table_id, subnet_id, vpc_id, main, destination_cidr, target, state])
 
                 row += 1
 
@@ -273,7 +259,7 @@ def get_security_group_details(session):
                 "Description": rule["Description"]
             }, ignore_index=True)
 
-    with pd.ExcelWriter(filename) as writer:
+    with pd.ExcelWriter(filename, engine='openpyxl') as writer:
         table.to_excel(writer, sheet_name="Security Group Info", index=False)
 
     return filename
@@ -285,59 +271,10 @@ def get_account_id(session):
     account_id = response["Account"]
     return account_id
 
-# def upload_files_to_s3(file_paths, bucket_name, session):
-#     account_id = get_account_id(session)
-#     s3_client = session.client("s3")
-#     try:
-#         s3_client.head_bucket(Bucket=bucket_name)
-#         print(f"Bucket '{bucket_name}' already exists. Using existing bucket.")
-#     except s3_client.exceptions.NoSuchBucket:
-#         s3_client.create_bucket(
-#             Bucket=bucket_name,
-#             CreateBucketConfiguration={"LocationConstraint": session.region_name}
-#         )
-#         print(f"Bucket '{bucket_name}' created successfully.")
-#     s3_client.put_bucket_versioning(
-#         Bucket=bucket_name,
-#         VersioningConfiguration={"Status": "Enabled"}
-#     )
-#     for file_path in file_paths:
-#         file_name = file_path.split("/")[-1]
-#         file_path_with_account_id = file_path.replace("{account_id}", account_id)  
-#         with open(file_path_with_account_id, "rb") as file:
-#             s3_key = file_name.replace("{account_id}", account_id)
-#             s3_client.put_object(
-#                 Body=file,
-#                 Bucket=bucket_name,
-#                 Key=s3_key
-#             )
-#         print(f"File '{file_name}' uploaded to S3 bucket '{bucket_name}' with account_id '{account_id}'.")
-# file_paths = [
-#     "/home/ec2-user/AWS-Inventory/security_group_info_{account_id}.xlsx",
-#     "/home/ec2-user/AWS-Inventory/vpc_info_{account_id}.xlsx"
-# ]
-# bucket_name = "salesandboarding-terraform-infra-statefiles-prod1"
-
-
 def main():
     session = create_session()
     get_vpc_info(session)
     get_security_group_details(session)
-    # upload_files_to_s3(file_paths, bucket_name, session)
-
 
 if __name__ == "__main__":
     main()
-
-
-# [ec2-user@ip-10-140-241-119 vpc-sg-inventory]$ python3 vpc-sg.py
-# [{'CidrBlock': '10.140.238.0/24', 'DhcpOptionsId': 'dopt-ded1dfb8', 'State': 'available', 'VpcId': 'vpc-05398baa4fb7c969c', 'OwnerId': '872180613810', 'InstanceTenancy': 'default', 'CidrBlockAssociationSet': [{'AssociationId': 'vpc-cidr-assoc-0f4c5d7bfe631998d', 'CidrBlock': '10.140.238.0/24', 'CidrBlockState': {'State': 'associated'}}], 'IsDefault': False, 'Tags': [{'Key': 'Name', 'Value': 'BCS-Patching-platform'}]}]
-# Traceback (most recent call last):
-#   File "vpc-sg.py", line 330, in <module>
-#     main()
-#   File "vpc-sg.py", line 324, in main
-#     get_vpc_info(session)
-#   File "vpc-sg.py", line 181, in get_vpc_info
-#     route_sheet = writer.book.add_worksheet("Routes")
-# AttributeError: 'Workbook' object has no attribute 'add_worksheet'
-# [ec2-user@ip-10-140-241-119 vpc-sg-inventory]$
