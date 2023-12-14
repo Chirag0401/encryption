@@ -1,0 +1,199 @@
+    - name: Path of panw directory on the Server
+      stat:
+        path: /etc/panw
+      register: panw_folder
+
+    - name: Create the panw directory if not exists
+      file:
+        path: /etc/panw
+        state: directory
+        mode: 0755
+        group: root
+        owner: root
+      when: panw_folder.stat.exists == false
+
+    - name: Path of cortex.conf file on the endpoint
+      stat:
+        path: /etc/panw/cortex.conf
+      register: cortex_file
+
+    - name: Create a cortex.conf file on the endpoint if not exists
+      file:
+        path: /etc/panw/cortex.conf
+        state: touch
+      when: cortex_file.stat.exists == false
+
+    - name: Ensure bashrc contains YUM_PROXY
+      become: yes
+      lineinfile:
+        path: .bashrc
+        regexp: 'export YUM_PROXY={{squid_server}}'
+        state: absent
+      check_mode: yes
+      changed_when: false
+      register: yum_proxy_out
+      when: inventory_hostname not in groups['non_proxy_server'] 
+
+    - name: add lines to bashrc file
+      become: yes
+      command: '{{item}}'
+      with_items:
+        - bash -c 'echo export YUM_PROXY={{squid_server}} >> .bashrc'
+      when: not yum_proxy_out.found and inventory_hostname not in groups['non_proxy_server']
+      ignore_errors: yes
+      
+    - name: Ensure bashrc contains HTTP_PROXY
+      become: yes
+      lineinfile:
+        path: .bashrc
+        regexp: 'export HTTP_PROXY={{squid_server}}'
+        state: absent
+      check_mode: yes
+      changed_when: false
+      register: http_proxy_out
+      when: inventory_hostname not in groups['non_proxy_server']
+      
+
+    - name: add HTTP_PROXY line to bashrc file
+      become: yes
+      command: '{{item}}'
+      with_items:
+        - bash -c 'echo export HTTP_PROXY={{squid_server}} >> .bashrc'
+      when: not http_proxy_out.found and inventory_hostname not in groups['non_proxy_server'] 
+      ignore_errors: yes
+      
+    - name: Ensure bashrc contains HTTPS_PROXY
+      become: yes
+      lineinfile:
+        path: .bashrc
+        regexp: 'export HTTPS_PROXY={{squid_server}}'
+        state: absent
+      check_mode: yes
+      changed_when: false
+      register: https_proxy_out
+      when: inventory_hostname not in groups['non_proxy_server']
+      
+
+    - name: add https_proxy line to bashrc file
+      become: yes
+      command: '{{item}}'
+      with_items:
+        - bash -c 'echo export HTTPS_PROXY={{squid_server}} >> .bashrc'
+      when: not https_proxy_out.found and inventory_hostname not in groups['non_proxy_server'] 
+      ignore_errors: yes
+      
+    - name: Ensure /etc/yum.conf contains PROXY
+      lineinfile:
+        path: /etc/yum.conf
+        regexp: 'proxy={{squid_server}}'
+        state: absent
+      check_mode: yes
+      changed_when: false
+      register: yum_proxy_out
+      when: inventory_hostname not in groups['non_proxy_server']
+      
+    - name: add lines to /etc/yum.conf
+      command: '{{item}}'
+      with_items:
+        - bash -c 'echo proxy={{squid_server}} >> /etc/yum.conf'
+      when: not yum_proxy_out.found and inventory_hostname not in groups['non_proxy_server']
+      ignore_errors: yes
+      
+    - name: Install dependent packages
+      ansible.builtin.package:
+        name: '{{ item }}'
+        state: present
+        update_cache: True
+      with_items:
+        - policycoreutils-python.x86_64
+        - selinux-policy-devel.noarch  
+
+    - name: Whitelist some urls
+      lineinfile: >
+        dest=/etc/squid/squid.conf
+        regexp="{{ item.regexp }}"
+        line="{{ item.line }}"
+        state=present
+      with_items:
+        - { regexp: 'acl whitelist dstdomain fisproduction.xdr.us.paloaltonetworks.com', line: 'acl whitelist dstdomain fisproduction.xdr.us.paloaltonetworks.com' }
+        - { regexp: 'acl whitelist dstdomain distributions.traps.paloaltonetworks.com', line: 'acl whitelist dstdomain distributions.traps.paloaltonetworks.com' }
+        - { regexp: 'acl whitelist dstdomain ch-fisproduction.traps.paloaltonetworks.com', line: 'acl whitelist dstdomain ch-fisproduction.traps.paloaltonetworks.com' }
+        - { regexp: 'acl whitelist dstdomain wss://lrc-us.paloaltonetworks.com', line: 'acl whitelist dstdomain wss://lrc-us.paloaltonetworks.com' }
+        - { regexp: 'acl whitelist dstdomain panw-xdr-payloads-prod-us.storage.googleapis.com', line: 'acl whitelist dstdomain panw-xdr-payloads-prod-us.storage.googleapis.com' }
+        - { regexp: 'acl whitelist dstdomain panw-xdr-installers-prod-us.storage.googleapis.com', line: 'acl whitelist dstdomain panw-xdr-installers-prod-us.storage.googleapis.com' }
+        - { regexp: 'acl whitelist dstdomain global-content-profiles-policy.storage.googleapis.com', line: 'acl whitelist dstdomain global-content-profiles-policy.storage.googleapis.com' }
+        - { regexp: 'acl whitelist dstdomain panw-xdr-evr-prod-us.storage.googleapis.com', line: 'acl whitelist dstdomain panw-xdr-evr-prod-us.storage.googleapis.com' }
+        - { regexp: 'acl whitelist dstdomain dc-fisproduction.traps.paloaltonetworks.com', line: 'acl whitelist dstdomain dc-fisproduction.traps.paloaltonetworks.com' }
+        - { regexp: 'acl whitelist dstdomain api-fisproduction.xdr.us.paloaltonetworks.com', line: 'acl whitelist dstdomain api-fisproduction.xdr.us.paloaltonetworks.com' }
+        - { regexp: 'acl whitelist dstdomain cc-fisproduction.traps.paloaltonetworks.com', line: 'acl whitelist dstdomain cc-fisproduction.traps.paloaltonetworks.com' }
+        - { regexp: 'acl whitelist dstdomain distributions-prod-us.traps.paloaltonetworks.com', line: 'acl whitelist dstdomain distributions-prod-us.traps.paloaltonetworks.com' }
+        - { regexp: 'acl whitelist dstdomain br-fisproduction.xdr.us.paloaltonetworks.com', line: 'acl whitelist dstdomain br-fisproduction.xdr.us.paloaltonetworks.com' }
+        - { regexp: 'acl whitelist dstdomain distributions.traps.paloaltonetworks.com', line: 'acl whitelist dstdomain distributions.traps.paloaltonetworks.com' }
+      when:  inventory_hostname in groups['squid']
+
+    - name: Add the Server ID and Server URL
+      lineinfile: >
+        dest=/etc/panw/cortex.conf
+        regexp="{{ item.regexp }}"
+        line="{{ item.line }}"
+        state=present
+      with_items:
+        - { regexp: '--distribution-id bace349faf0f473b82d42e56eff35c87', line: '--distribution-id bace349faf0f473b82d42e56eff35c87' }
+        - { regexp: '--distribution-server https://distributions.traps.paloaltonetworks.com', line: '--distribution-server https://distributions.traps.paloaltonetworks.com' }
+        - { regexp: '--proxy-list', line: '--proxy-list={{ proxy }}' }
+
+
+    - name: copy Cortex Agent
+      copy:
+        src: /home/ec2-user/FIS-Linux-7_7_2_66464.zip
+        dest: /etc/panw
+        
+    - name: unarchive Cortex Agent
+      unarchive:
+        src:  /home/ec2-user/FIS-Linux-7_7_2_66464.zip
+        dest: /home/ec2-user
+      delegate_to: localhost
+       
+    - name: Extract the archive file on the remote node
+      unarchive:
+        src: /home/ec2-user/FIS-Linux-7_7_2_66464_rpm.tar.gz
+        dest: /etc/panw
+
+    - name: check Cortex Agent is installed or not
+      command: rpm -q cortex-agent
+      register: cortex_verification_output
+      ignore_errors: yes
+
+    - name: Install the cortex agent package on the server
+      command: yum install /etc/panw/cortex-7.7.2.66464.rpm -y
+      when: cortex_verification_output.rc == 1
+      
+    - name: Reinstall the cortex agent package on the server
+      command: yum reinstall /etc/panw/cortex-7.7.2.66464.rpm -y
+      when: cortex_verification_output.rc == 0
+    
+    - name: Set/Add the Proxy Server into the cortex.conf file 
+      command: /opt/traps/bin/cytool proxy set "{{proxy}}"
+      when: inventory_hostname not in groups['non_proxy_server']
+
+    - name: Stop all
+      command: '/opt/traps/bin/cytool runtime stop all'
+      
+    - name: sleep
+      command: "sleep 30"
+
+    - name: Start all
+      command: '/opt/traps/bin/cytool runtime start all'
+      register: cortex_output
+    - debug:
+        var: cortex_output.stdout_lines
+
+    - name: check when agent last time check
+      command: '/opt/traps/bin/cytool last_checkin'
+      register: last_checkin_output
+    - debug:
+        var: last_checkin_output.stdout_lines
+
+    
+
+    
