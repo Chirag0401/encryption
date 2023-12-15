@@ -1,0 +1,191 @@
+    - name: include vars file
+      include_vars: "vars/ppe.yaml"
+
+    - name: Ensure bashrc contains YUM_PROXY
+      lineinfile:
+        path: .bashrc
+        regexp: 'export YUM_PROXY={{squid_server}}'
+        state: absent
+      check_mode: yes
+      changed_when: false
+      register: yum_proxy_out
+      when: inventory_hostname not in groups['non_proxy_server'] 
+
+    - name: add lines to bashrc file
+      command: '{{item}}'
+      with_items:
+        - bash -c 'echo export YUM_PROXY={{squid_server}} >> .bashrc'
+      when: not yum_proxy_out.found and inventory_hostname not in groups['non_proxy_server'] 
+      ignore_errors: yes
+    
+    - name: Ensure /etc/yum.conf contains PROXY
+      lineinfile:
+        path: /etc/yum.conf
+        regexp: 'proxy={{squid_server}}'
+        state: absent
+      check_mode: yes
+      changed_when: false
+      register: proxy_out
+      when: inventory_hostname not in groups['non_proxy_server'] 
+
+    - name: add lines to /etc/yum.conf
+      command: '{{item}}'
+      with_items:
+        - bash -c 'echo proxy={{squid_server}} >> /etc/yum.conf'
+      when: not proxy_out.found and inventory_hostname not in groups['non_proxy_server'] 
+      ignore_errors: yes
+
+    - name: Install ldap client packages
+      ansible.builtin.package:
+        name: '{{ item }}'
+        state: present
+        update_cache: True
+      with_items:
+        - openldap-clients
+        - pam_ldap
+        - nss-pam-ldapd
+        - sssd 
+        - sssd-client
+
+    - name: Ensure dependencies are installed
+      ansible.builtin.package:
+        name:
+          - libselinux-python
+        state: present
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Amazon'
+
+    - name: Put Selinux in permissive mode
+      selinux:
+        policy: targeted
+        state: permissive
+      register: selinuxpermissive
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Amazon'
+      
+    - name: add lines to /etc/hosts
+      lineinfile: >
+        dest=/etc/hosts
+        regexp="{{ item.regexp }}"
+        line="{{ item.line }}"
+        state=present
+      with_items:
+        - { regexp: '172.16.32.199 UKDC1-OC-ADC01.worldpaypp.local', line: '172.16.32.199 UKDC1-OC-ADC01.worldpaypp.local' }
+        - { regexp: '172.16.32.229 UKDC1-OC-ADC01.worldpaypp.local', line: '172.16.32.229 UKDC1-OC-ADC01.worldpaypp.local' }
+        - { regexp: '172.16.32.215 UKDC1-OC-ADC01.worldpaypp.local', line: '172.16.32.215 UKDC1-OC-ADC01.worldpaypp.local' }
+        - { regexp: '172.16.32.199 UKDC2-OC-ADC01.worldpaypp.local', line: '172.16.32.199 UKDC2-OC-ADC01.worldpaypp.local' }
+        - { regexp: '172.16.32.229 UKDC2-OC-ADC01.worldpaypp.local', line: '172.16.32.229 UKDC2-OC-ADC01.worldpaypp.local' }
+        - { regexp: '172.16.32.215 UKDC2-OC-ADC01.worldpaypp.local', line: '172.16.32.215 UKDC2-OC-ADC01.worldpaypp.local' } 
+      when: inventory_hostname not in groups['non_proxy_server'] 
+      
+
+    - name: This command will join a node to an LDAP server
+      command: authconfig --enableshadow --enablecache --disablekrb5 --enableforcelegacy --ldapbasedn "dc=worldpaypp,dc=local" --ldapserver "{{ ldapServer }}" --update
+
+    - name: This command will enable home dir
+      command: "authconfig --enablesssd --enablesssdauth --enablelocauthorize --enablemkhomedir --update"
+      
+    - name: replace line for tls_cacerts
+      lineinfile: 
+        path: /etc/openldap/ldap.conf
+        regexp: 'TLS_CACERTDIR' 
+        line: 'TLS_CACERTDIR   /etc/openldap/cacerts'
+        backrefs: yes
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Amazon'
+
+    - name: replace line for tls_certs
+      lineinfile: 
+        path: /etc/openldap/ldap.conf
+        regexp: 'TLS_CACERTDIR' 
+        line: 'TLS_CACERTDIR   /etc/openldap/certs'
+        backrefs: yes
+      when: ansible_distribution == 'RedHat'
+
+    - name: copy files
+      copy: src={{ item.src }} dest={{ item.dest }}
+      with_items:
+        - { src: '../files/sshd_config', dest: '/etc/ssh/sshd_config' }
+        - { src: '../files/sssd.conf', dest: '/etc/sssd/sssd.conf' }
+        
+    - name: create sudoers file
+      copy:
+        src: '../files/20-infra-ped-admin-users'
+        dest: '/etc/sudoers.d/20-infra-ped-admin-users'
+        owner: root
+        group: root
+        mode: '0440'
+      become: yes
+     
+      
+    - name: Validate sudoers file
+      command: visudo -cf /etc/sudoers     
+      
+    - name: copy files on redhat 
+      copy:
+        src: "{{ item }}"
+        dest: /etc/openldap/certs/
+      with_fileglob: "../files/ppe_certs/*.pem"
+      when: ansible_distribution == 'RedHat'
+
+    - name: copy files on centos or amazon linux
+      copy:
+        src: "{{ item }}"
+        dest: /etc/openldap/cacerts/
+      with_fileglob: "ppe_certs/*.pem"
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Amazon'
+
+    - name: replace line
+      lineinfile: 
+        path: /etc/sssd/sssd.conf
+        regexp: 'ldap_tls_cacertdir = /etc/openldap/certs' 
+        line: 'ldap_tls_cacertdir = /etc/openldap/cacerts'
+        backrefs: yes
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Amazon'
+        
+    - name: change file ownership
+      ansible.builtin.file:
+        path: /etc/sssd/sssd.conf
+        owner: root
+        group: root
+        mode: '400'
+
+    - name:  Rehash the certificate 
+      command: "cacertdir_rehash /etc/openldap/cacerts/"
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Amazon'
+
+    - name: Rehash the certificate for Redhat
+      command: "openssl rehash /etc/openldap/certs/"
+      when: ansible_distribution == 'RedHat'
+
+    - name: stop SSSD service
+      ansible.builtin.service:
+        name: sssd
+        state: stopped
+
+    - name: remove files
+      command: "rm -f /var/lib/sss/db/* /var/log/sssd/*"
+      
+    - name: This command 
+      command: "authconfig --updateall --disableldap --disableldapauth"
+
+    - name: start SSSD service
+      ansible.builtin.service:
+        name: sssd
+        state: started
+        enabled: true
+
+    - name: restart sshd service
+      ansible.builtin.service:
+        name: sshd
+        state: restarted
+        enabled: true
+
+    - name: "Populate service facts"
+      service_facts:
+    - name: "See the service sshd facts as they are"
+      debug:
+        msg: "{{ansible_facts.services['sshd.service'].state}}"
+
+    - name: reboot system
+      shell: sleep 2 && shutdown -r now "Ansible package updates triggered"
+      async: 1
+      poll: 0
+      when: selinuxpermissive.changed and ( ansible_distribution == 'CentOS' or ansible_distribution == 'Amazon' )
