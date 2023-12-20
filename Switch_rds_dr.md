@@ -40,3 +40,38 @@ python3 your_script_name.py
 ## Note
 
 Ensure that you have the necessary AWS permissions to perform RDS and Route 53 operations. Always test the script in a non-production environment before using it in a production scenario.
+
+
+
+Certainly! Here's a more complete example of an Ansible playbook that demonstrates setting the ZabbixProxy fact in a round-robin fashion:
+
+yaml
+Copy code
+---
+- name: Round-robin ZabbixProxy Example
+  hosts: localhost
+  gather_facts: false
+  vars:
+    ZabbixProxy: "server1,server2,server3"
+
+  tasks:
+    - name: Set ZabbixProxy fact in round-robin fashion
+      set_fact:
+        ZabbixProxy: "{{ item.0 }}"
+      loop: "{{ query('zip', ZabbixProxy.split(',')) | cycle }}"
+
+    - name: Display ZabbixProxy fact for each iteration
+      debug:
+        var: ZabbixProxy
+In this example, the playbook sets the ZabbixProxy variable to "server1,server2,server3". The set_fact task then iterates through the servers in a round-robin fashion, updating the ZabbixProxy fact for each iteration. The debug task is included to display the ZabbixProxy fact for each iteration.
+
+Run this playbook with the ansible-playbook command to see the round-robin distribution in action.
+
+
+
+
+
+
+Message ChatGPT…
+
+ChatGPT c
