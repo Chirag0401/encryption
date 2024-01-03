@@ -106,3 +106,30 @@ Set these environment variables:
 
 Check `script_logs.log` and `volume_changes.csv` for detailed logs and volume change records.
 
+
+
+
+ops.ped.local
+patch.bcs.local
+develop.bcs.local
+sit.bcs.local
+ppe.bcs.local
+ppe.shp.local
+ppe.wpt.local
+ 
+ 
+elastic01.sit.bcs.local	A	Simple	-	No	10.140.242.61
+eu-ce1-mg01.e1.develop.bcs.local	A	Simple	-	No	10.141.64.14
+eu-we1-c-patch-zbp01.patch.bcs.local	A	Simple	-	No	10.140.238.12
+av-opswat-1a.ppe.bcs.local	A	Simple	-	No	172.15.115.61
+eu-ce1-build-s01.ops.ped.local	A	Simple	-	No	10.141.26.202
+eu-we1-c-shp-mgt1.ppe.shp.local	A	Simple	-	No	10.140.240.199
+dmz-squid-11.ppe.wpt.local	A	Simple	-	No	172.141.143.219
+
+
+10.140.206.43	53	Do53
+10.140.206.76	53	Do53
+10.140.206.181	53	Do53
+10.141.17.26	53	Do53
+10.141.17.97	53	Do53
+10.141.17.233	53	Do53
