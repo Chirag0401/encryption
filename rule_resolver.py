@@ -36,16 +36,18 @@ def create_resolver_rule(client, rule_name, domain, targets, resolver_endpoint_i
         print(f"Error creating rule for {domain}: {e}")
         return None
 
-def associate_resolver_rule(client, rule_id, vpc_id, rule_name):
-    """Associate a resolver rule with a VPC."""
-    try:
-        client.associate_resolver_rule(
-            ResolverRuleId=rule_id,
-            VPCId=vpc_id,
-            Name=rule_name
-        )
-    except ClientError as e:
-        print(f"Error associating rule {rule_name} with VPC {vpc_id}: {e}")
+def associate_resolver_rule(client, rule_id, vpc_ids, rule_name):
+    """Associate a resolver rule with multiple VPCs."""
+    for vpc_id in vpc_ids:
+        try:
+            client.associate_resolver_rule(
+                ResolverRuleId=rule_id,
+                VPCId=vpc_id.strip(),
+                Name=rule_name
+            )
+            print(f"Associated rule {rule_name} with VPC {vpc_id}")
+        except ClientError as e:
+            print(f"Error associating rule {rule_name} with VPC {vpc_id}: {e}")
 
 # Create a Boto3 session
 session = create_session()
@@ -70,8 +72,10 @@ targets = [
 
 for domain in domains:
     print(f"\nProcessing domain: {domain}")
-    vpc_id = input("Enter the VPC ID to associate with the rule: ")
+    vpc_ids_input = input("Enter the VPC IDs to associate with the rule (comma-separated): ")
     resolver_endpoint_id = input("Enter the Resolver Endpoint ID: ")
+
+    vpc_ids = vpc_ids_input.split(',')
 
     rule_name = domain.replace('.', '-')
     rule_id = get_resolver_rule_id(client, rule_name)
@@ -82,8 +86,7 @@ for domain in domains:
         rule_id = create_resolver_rule(client, rule_name, domain, targets, resolver_endpoint_id)
         if rule_id:
             print(f"Created rule {rule_name}: {rule_id}")
-            associate_resolver_rule(client, rule_id, vpc_id, rule_name)
-            print(f"Associated rule {rule_name} with VPC {vpc_id}")
+            associate_resolver_rule(client, rule_id, vpc_ids, rule_name)
 
 
 
