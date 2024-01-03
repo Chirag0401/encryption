@@ -1,5 +1,15 @@
 import boto3
+import os
 from botocore.exceptions import ClientError
+
+def create_session():
+    """Create a Boto3 session using environment variables."""
+    return boto3.Session(
+        region_name=os.environ.get('AWS_DEFAULT_REGION'),
+        aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+        aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
+        aws_session_token=os.environ.get('AWS_SESSION_TOKEN')
+    )
 
 def get_resolver_rule_id(client, rule_name):
     """Get the ID of the resolver rule by name."""
@@ -38,8 +48,11 @@ def associate_resolver_rule(client, rule_id, vpc_id, rule_name):
     except ClientError as e:
         print(f"Error associating rule {rule_name} with VPC {vpc_id}: {e}")
 
+# Create a Boto3 session
+session = create_session()
+
 # Initialize the Route 53 Resolver client
-client = boto3.client('route53resolver')
+client = session.client('route53resolver')
 
 # List of domains and target IPs
 domains = [
