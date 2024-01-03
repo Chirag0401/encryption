@@ -85,3 +85,26 @@ for domain in domains:
             print(f"Created rule {rule_name}: {rule_id}")
             associate_resolver_rule(client, rule_id, vpc_id, rule_name)
             print(f"Associated rule {rule_name} with VPC {vpc_id}")
+
+
+
+
+# [ec2-user@ip-10-140-241-119 route_resolver]$ python3 rule_resolver.py                                                                                      Enter the VPC ID to associate with the rules: vpc-05398baa4fb7c969c
+# Enter the Resolver Endpoint ID: rslvr-out-17e0606ca0094a219
+# Rule ops-ped-local already exists.
+# Rule patch-bcs-local already exists.
+# Traceback (most recent call last):
+#   File "rule_resolver.py", line 83, in <module>
+#     rule_id = create_resolver_rule(client, rule_name, domain, targets, resolver_endpoint_id)
+#   File "rule_resolver.py", line 33, in create_resolver_rule
+#     RuleAction='FORWARD'
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/botocore/client.py", line 553, in _api_call
+#     return self._make_api_call(operation_name, kwargs)
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/botocore/client.py", line 967, in _make_api_call
+#     headers=additional_headers,
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/botocore/client.py", line 1037, in _convert_to_request_dict
+#     api_params, operation_model
+#   File "/home/ec2-user/.local/lib/python3.7/site-packages/botocore/validate.py", line 381, in serialize_to_request
+#     raise ParamValidationError(report=report.generate_report())
+# botocore.exceptions.ParamValidationError: Parameter validation failed:
+# Unknown parameter in input: "RuleAction", must be one of: CreatorRequestId, Name, RuleType, DomainName, TargetIps, ResolverEndpointId, Tags
