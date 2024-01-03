@@ -29,8 +29,7 @@ def create_resolver_rule(client, rule_name, domain, targets, resolver_endpoint_i
             RuleType='FORWARD',
             DomainName=domain,
             TargetIps=targets,
-            ResolverEndpointId=resolver_endpoint_id,
-            RuleAction='FORWARD'
+            ResolverEndpointId=resolver_endpoint_id
         )
         return response['ResolverRule']['Id']
     except ClientError as e:
