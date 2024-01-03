@@ -68,11 +68,11 @@ targets = [
     {'Ip': '10.141.17.233', 'Port': 53}
 ]
 
-# User inputs for VPC ID and Resolver Endpoint ID
-vpc_id = input("Enter the VPC ID to associate with the rules: ")
-resolver_endpoint_id = input("Enter the Resolver Endpoint ID: ")
-
 for domain in domains:
+    print(f"\nProcessing domain: {domain}")
+    vpc_id = input("Enter the VPC ID to associate with the rule: ")
+    resolver_endpoint_id = input("Enter the Resolver Endpoint ID: ")
+
     rule_name = domain.replace('.', '-')
     rule_id = get_resolver_rule_id(client, rule_name)
 
